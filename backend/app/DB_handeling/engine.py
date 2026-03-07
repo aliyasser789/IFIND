@@ -1,6 +1,6 @@
 from sqlalchemy import create_engine 
 from sqlalchemy.orm import sessionmaker 
-from DB_handeling.config import DATABASE_URL 
+from .config import DATABASE_URL
  
 # Create the engine - this is the actual connection to PostgreSQL 
 engine = create_engine(DATABASE_URL) 

@@ -8,16 +8,17 @@ import '../services/storage_service.dart';
 import 'auth_screen.dart';
 import 'home_screen.dart';
 
-// ─── Design tokens (exact match to HTML config) ────────────────────────────
-const _kPrimary       = Color(0xFF135BEC);
-const _kAccentPurple  = Color(0xFF8B5CF6);
-const _kBackground    = Color(0xFF101622);
-const _kSlate900      = Color(0xFF0F172A);
-const _kSlate300      = Color(0xFFCBD5E1);
-const _kSlate400      = Color(0xFF94A3B8);
-const _kSlate500      = Color(0xFF64748B);
+// ─── Design tokens ──────────────────────────────────────────────────────────
+const _kPrimary      = Color(0xFF135BEC);
+const _kAccentPurple = Color(0xFF8B5CF6);
+const _kBackground   = Color(0xFF0A1228);   // darkest navy (screenshot top)
+const _kBgBottom     = Color(0xFF190D3A);   // deep purple (screenshot bottom)
+const _kSlate900     = Color(0xFF0F172A);
+const _kSlate300     = Color(0xFFCBD5E1);
+const _kSlate400     = Color(0xFF94A3B8);
+const _kSlate500     = Color(0xFF64748B);
 
-// ─── Spacing scale: 8 · 16 · 24 · 32 · 48 · 64 ────────────────────────────
+// ─── Spacing scale ───────────────────────────────────────────────────────────
 const double _sp8  = 8;
 const double _sp16 = 16;
 const double _sp24 = 24;
@@ -34,38 +35,47 @@ class SplashScreen extends StatefulWidget {
 
 class _SplashScreenState extends State<SplashScreen>
     with TickerProviderStateMixin {
+  // Progress bar fills over 5 seconds then navigates
   late final AnimationController _progressController;
   late final Animation<double>   _progressAnim;
+
+  // Hero entrance: fade + scale
   late final AnimationController _heroController;
   late final Animation<double>   _heroOpacity;
   late final Animation<double>   _heroScale;
+
+  // Pulsing glow on the logo card
+  late final AnimationController _pulseController;
 
   @override
   void initState() {
     super.initState();
 
-    // 7-second loading bar matches the HTML's implied loading duration
     _progressController = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 7000),
+      duration: const Duration(milliseconds: 5000),
     );
     _progressAnim = CurvedAnimation(
       parent: _progressController,
-      curve: Curves.linear,
+      curve: Curves.easeInOut,
     );
 
-    // Hero entrance: fade-in + slight scale-up
     _heroController = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 1100),
+      duration: const Duration(milliseconds: 1200),
     );
     _heroOpacity = CurvedAnimation(
       parent: _heroController,
-      curve: const Interval(0.08, 1.0, curve: Curves.easeOut),
+      curve: const Interval(0.05, 1.0, curve: Curves.easeOut),
     );
-    _heroScale = Tween<double>(begin: 0.90, end: 1.0).animate(
+    _heroScale = Tween<double>(begin: 0.88, end: 1.0).animate(
       CurvedAnimation(parent: _heroController, curve: Curves.easeOutCubic),
     );
+
+    _pulseController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 2400),
+    )..repeat(reverse: true);
 
     _heroController.forward();
     _progressController.forward();
@@ -91,6 +101,7 @@ class _SplashScreenState extends State<SplashScreen>
   void dispose() {
     _heroController.dispose();
     _progressController.dispose();
+    _pulseController.dispose();
     super.dispose();
   }
 
@@ -104,25 +115,23 @@ class _SplashScreenState extends State<SplashScreen>
       body: Stack(
         fit: StackFit.expand,
         children: [
-          // ── Layer 1: mesh background ───────────────────────────────────
+          // ── Layer 1: rich background gradient ─────────────────────────
           const _SplashBackdrop(),
 
-          // ── Layer 2: ambient mid-screen blobs (HTML positions) ─────────
-          // top-1/4, -left-20 → blur-[100px], bg-primary/10
+          // ── Layer 2: ambient blobs ─────────────────────────────────────
           _AmbientBlob(
-            top:      size.height * 0.25,
+            top:      size.height * 0.20,
             left:     -80,
-            diameter: 256,
+            diameter: 280,
             color:    _kPrimary,
-            opacity:  0.10,
+            opacity:  0.13,
           ),
-          // bottom-1/4, -right-20 → blur-[100px], bg-accent-purple/10
           _AmbientBlob(
-            bottom:   size.height * 0.25,
+            bottom:   size.height * 0.20,
             right:    -80,
-            diameter: 256,
+            diameter: 280,
             color:    _kAccentPurple,
-            opacity:  0.10,
+            opacity:  0.15,
           ),
 
           // ── Layer 3: main content ──────────────────────────────────────
@@ -131,10 +140,8 @@ class _SplashScreenState extends State<SplashScreen>
               padding: const EdgeInsets.symmetric(horizontal: _sp32),
               child: Column(
                 children: [
-                  // Top spacer (h-20 = 80px in HTML)
                   SizedBox(height: compact ? _sp48 : _sp64 + _sp16),
 
-                  // Center: logo card + title
                   Expanded(
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
@@ -143,7 +150,10 @@ class _SplashScreenState extends State<SplashScreen>
                           opacity: _heroOpacity,
                           child: ScaleTransition(
                             scale: _heroScale,
-                            child: _LogoCard(compact: compact),
+                            child: _LogoCard(
+                              compact:         compact,
+                              pulseController: _pulseController,
+                            ),
                           ),
                         ),
                         SizedBox(height: compact ? _sp24 : _sp32),
@@ -155,7 +165,6 @@ class _SplashScreenState extends State<SplashScreen>
                     ),
                   ),
 
-                  // Bottom: tagline + progress bar + label (pb-12 = 48px)
                   _buildBottomSection(compact: compact),
                 ],
               ),
@@ -166,7 +175,6 @@ class _SplashScreenState extends State<SplashScreen>
     );
   }
 
-  // ── Title: "iFind" + gradient underline ─────────────────────────────────
   Widget _buildTitle({required bool compact}) {
     return Column(
       mainAxisSize: MainAxisSize.min,
@@ -180,15 +188,14 @@ class _SplashScreenState extends State<SplashScreen>
               height:        1.0,
             ),
             children: const [
-              TextSpan(text: 'i',     style: TextStyle(color: Colors.white)),
-              TextSpan(text: 'Find',  style: TextStyle(color: _kPrimary)),
+              TextSpan(text: 'i',    style: TextStyle(color: Colors.white)),
+              TextSpan(text: 'Find', style: TextStyle(color: _kPrimary)),
             ],
           ),
         ),
         const SizedBox(height: _sp8 + 2),
-        // mt-1 h-1 w-14 → ~4px tall, 56px wide gradient bar
         Container(
-          width: 56,
+          width:  56,
           height: 4,
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(999),
@@ -201,14 +208,12 @@ class _SplashScreenState extends State<SplashScreen>
     );
   }
 
-  // ── Bottom section ───────────────────────────────────────────────────────
   Widget _buildBottomSection({required bool compact}) {
     return Padding(
       padding: EdgeInsets.only(bottom: compact ? _sp32 : _sp48),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          // Tagline line 1 — slate-300, font-medium
           Text(
             "Find what's lost,",
             style: GoogleFonts.manrope(
@@ -220,7 +225,6 @@ class _SplashScreenState extends State<SplashScreen>
             ),
             textAlign: TextAlign.center,
           ),
-          // Tagline line 2 — slate-400, font-normal
           Text(
             "return what's found",
             style: GoogleFonts.manrope(
@@ -235,22 +239,20 @@ class _SplashScreenState extends State<SplashScreen>
 
           SizedBox(height: compact ? _sp24 : _sp32),
 
-          // w-56 h-[3px] progress bar with animated fill
+          // Animated progress bar
           SizedBox(
-            width:  224, // w-56 = 14rem = 224px
+            width:  224,
             height: 3,
             child: ClipRRect(
               borderRadius: BorderRadius.circular(999),
               child: LayoutBuilder(
                 builder: (context, constraints) => Stack(
                   children: [
-                    // Track: bg-white/10 — explicit size so it always fills
                     Container(
                       width:  constraints.maxWidth,
                       height: constraints.maxHeight,
                       color:  Colors.white.withValues(alpha: 0.10),
                     ),
-                    // Animated fill: explicit width + height from LayoutBuilder
                     AnimatedBuilder(
                       animation: _progressAnim,
                       builder: (context, _) => Container(
@@ -263,8 +265,8 @@ class _SplashScreenState extends State<SplashScreen>
                           ),
                           boxShadow: [
                             BoxShadow(
-                              color:      _kPrimary.withValues(alpha: 0.60),
-                              blurRadius: 8,
+                              color:      _kPrimary.withValues(alpha: 0.65),
+                              blurRadius: 10,
                             ),
                           ],
                         ),
@@ -278,7 +280,6 @@ class _SplashScreenState extends State<SplashScreen>
 
           SizedBox(height: compact ? _sp24 : _sp32),
 
-          // "PREMIUM LOST & FOUND" — tracking-[0.25em] slate-500
           Text(
             'PREMIUM LOST & FOUND',
             style: GoogleFonts.manrope(
@@ -295,51 +296,71 @@ class _SplashScreenState extends State<SplashScreen>
 }
 
 // ─── Logo Card ───────────────────────────────────────────────────────────────
-// Replicates HTML structure:
-//   <outer glow: gradient-to-tr from-primary to-accent-purple, blur, opacity-40>
-//   <card: slate-900, rounded-[2rem], border-white/10>
-//     <internal gradient overlay>
-//     <location_on icon: white, drop-shadow glow>
-//     <radio_button_checked: primary/40, scale-1.25, blur-sm>
 
 class _LogoCard extends StatelessWidget {
-  const _LogoCard({required this.compact});
+  const _LogoCard({
+    required this.compact,
+    required this.pulseController,
+  });
 
-  final bool compact;
+  final bool              compact;
+  final AnimationController pulseController;
 
   @override
   Widget build(BuildContext context) {
-    // w-32 h-32 = 128px; rounded-[2rem] = 32px
     final double cardSize   = compact ? 116.0 : 128.0;
     const double cardRadius = 32.0;
-    final double iconSize   = cardSize * 0.56; // ≈ 72px equivalent
+    final double iconSize   = cardSize * 0.56;
 
     return Stack(
       alignment: Alignment.center,
       children: [
-        // ── Outer glow: blurred gradient rect (HTML: -inset-1.5 blur opacity-40)
-        // We use ImageFiltered to apply a real Gaussian blur to a gradient container
+        // ── Pulsing outer glow ─────────────────────────────────────────
+        AnimatedBuilder(
+          animation: pulseController,
+          builder: (context, _) {
+            final t = pulseController.value; // 0 → 1 → 0 (repeat reverse)
+            final glowOpacity = 0.25 + 0.20 * t;
+            final glowSpread  = 6.0  + 6.0  * t;
+            return Container(
+              width:  cardSize + glowSpread * 2,
+              height: cardSize + glowSpread * 2,
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(cardRadius + 8),
+                gradient: LinearGradient(
+                  begin: Alignment.bottomLeft,
+                  end:   Alignment.topRight,
+                  colors: [
+                    _kPrimary.withValues(alpha: glowOpacity),
+                    _kAccentPurple.withValues(alpha: glowOpacity),
+                  ],
+                ),
+              ),
+            );
+          },
+        ),
+
+        // ── Blurred glow layer (static depth) ─────────────────────────
         ImageFiltered(
-          imageFilter: ImageFilter.blur(sigmaX: 14, sigmaY: 14),
+          imageFilter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
           child: Container(
             width:  cardSize + 16,
             height: cardSize + 16,
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(cardRadius + 4),
               gradient: LinearGradient(
-                // gradient-to-tr = bottom-left → top-right
                 begin: Alignment.bottomLeft,
                 end:   Alignment.topRight,
                 colors: [
-                  _kPrimary.withValues(alpha: 0.40),
-                  _kAccentPurple.withValues(alpha: 0.40),
+                  _kPrimary.withValues(alpha: 0.45),
+                  _kAccentPurple.withValues(alpha: 0.45),
                 ],
               ),
             ),
           ),
         ),
 
-        // ── Main card: slate-900, rounded-[2rem], border white/10 ──────
+        // ── Card body ─────────────────────────────────────────────────
         Container(
           width:  cardSize,
           height: cardSize,
@@ -347,14 +368,14 @@ class _LogoCard extends StatelessWidget {
             borderRadius: BorderRadius.circular(cardRadius),
             color:  _kSlate900,
             border: Border.all(
-              color: Colors.white.withValues(alpha: 0.10),
+              color: Colors.white.withValues(alpha: 0.12),
               width: 1,
             ),
             boxShadow: [
               BoxShadow(
-                color:      Colors.black.withValues(alpha: 0.50),
-                blurRadius: 32,
-                offset:     const Offset(0, 16),
+                color:      Colors.black.withValues(alpha: 0.55),
+                blurRadius: 40,
+                offset:     const Offset(0, 20),
               ),
             ],
           ),
@@ -363,7 +384,7 @@ class _LogoCard extends StatelessWidget {
             child: Stack(
               alignment: Alignment.center,
               children: [
-                // Internal gradient: from-primary/20 via-transparent to-accent-purple/20
+                // Internal gradient overlay
                 Positioned.fill(
                   child: DecoratedBox(
                     decoration: BoxDecoration(
@@ -371,9 +392,9 @@ class _LogoCard extends StatelessWidget {
                         begin:  Alignment.topLeft,
                         end:    Alignment.bottomRight,
                         colors: [
-                          _kPrimary.withValues(alpha: 0.20),
+                          _kPrimary.withValues(alpha: 0.22),
                           Colors.transparent,
-                          _kAccentPurple.withValues(alpha: 0.20),
+                          _kAccentPurple.withValues(alpha: 0.22),
                         ],
                         stops: const [0.0, 0.50, 1.0],
                       ),
@@ -381,26 +402,23 @@ class _LogoCard extends StatelessWidget {
                   ),
                 ),
 
-                // Secondary icon: radio_button_checked — primary/40, scale-1.25, blur-sm
+                // Background blurred ring
                 ImageFiltered(
-                  imageFilter: ImageFilter.blur(sigmaX: 3.5, sigmaY: 3.5),
+                  imageFilter: ImageFilter.blur(sigmaX: 4, sigmaY: 4),
                   child: Icon(
                     Icons.radio_button_checked,
                     size:  iconSize * 1.25,
-                    color: _kPrimary.withValues(alpha: 0.40),
+                    color: _kPrimary.withValues(alpha: 0.35),
                   ),
                 ),
 
-                // Primary icon: location_on — white, drop-shadow glow
+                // Main location icon with glow
                 ShaderMask(
-                  blendMode:   BlendMode.srcATop,
+                  blendMode: BlendMode.srcATop,
                   shaderCallback: (bounds) => const RadialGradient(
                     center: Alignment(0, -0.3),
                     radius: 0.65,
-                    colors: [
-                      Color(0xFFFFFFFF),
-                      Color(0xFFD0DEFF),
-                    ],
+                    colors: [Color(0xFFFFFFFF), Color(0xFFD0DEFF)],
                   ).createShader(bounds),
                   child: Icon(
                     Icons.location_on,
@@ -408,14 +426,14 @@ class _LogoCard extends StatelessWidget {
                     color: Colors.white,
                     shadows: [
                       Shadow(
-                        color:       Colors.white.withValues(alpha: 0.30),
-                        blurRadius:  15,
-                        offset:      Offset.zero,
+                        color:      Colors.white.withValues(alpha: 0.35),
+                        blurRadius: 18,
+                        offset:     Offset.zero,
                       ),
                       Shadow(
-                        color:       _kPrimary.withValues(alpha: 0.20),
-                        blurRadius:  24,
-                        offset:      Offset.zero,
+                        color:      _kPrimary.withValues(alpha: 0.30),
+                        blurRadius: 28,
+                        offset:     Offset.zero,
                       ),
                     ],
                   ),
@@ -429,9 +447,8 @@ class _LogoCard extends StatelessWidget {
   }
 }
 
-// ─── Background Backdrop ─────────────────────────────────────────────────────
-// HTML: radial at 0%/0% (primary 0.4) + radial at 100%/100% (purple 0.4)
-//       over solid #101622 base
+// ─── Background Backdrop ──────────────────────────────────────────────────────
+// Linear base (navy → deep purple) + corner radial color blobs
 
 class _SplashBackdrop extends StatelessWidget {
   const _SplashBackdrop();
@@ -441,33 +458,36 @@ class _SplashBackdrop extends StatelessWidget {
     return const Stack(
       fit: StackFit.expand,
       children: [
-        // Base dark navy
-        ColoredBox(color: _kBackground),
-
-        // Top-left radial: rgba(19, 91, 236, 0.4) circle at 0% 0%
+        // Base: navy top → deep purple bottom (matches screenshot)
         DecoratedBox(
           decoration: BoxDecoration(
-            gradient: RadialGradient(
-              center: Alignment(-1.0, -1.0),
-              radius: 1.45,
-              colors: [
-                Color(0x66135BEC),
-                Color(0x00135BEC),
-              ],
+            gradient: LinearGradient(
+              begin:  Alignment.topCenter,
+              end:    Alignment.bottomCenter,
+              colors: [_kBackground, _kBgBottom],
+              stops:  [0.0, 1.0],
             ),
           ),
         ),
 
-        // Bottom-right radial: rgba(139, 92, 246, 0.4) circle at 100% 100%
+        // Top-left blue radial
+        DecoratedBox(
+          decoration: BoxDecoration(
+            gradient: RadialGradient(
+              center: Alignment(-1.0, -1.0),
+              radius: 1.40,
+              colors: [Color(0x55135BEC), Color(0x00135BEC)],
+            ),
+          ),
+        ),
+
+        // Bottom-right purple radial
         DecoratedBox(
           decoration: BoxDecoration(
             gradient: RadialGradient(
               center: Alignment(1.0, 1.0),
-              radius: 1.45,
-              colors: [
-                Color(0x668B5CF6),
-                Color(0x008B5CF6),
-              ],
+              radius: 1.40,
+              colors: [Color(0x558B5CF6), Color(0x008B5CF6)],
             ),
           ),
         ),
@@ -477,8 +497,6 @@ class _SplashBackdrop extends StatelessWidget {
 }
 
 // ─── Ambient Blob ────────────────────────────────────────────────────────────
-// HTML: w-64 h-64 rounded-full blur-[100px] bg-primary/10 or bg-accent-purple/10
-// Positioned at top-1/4 / bottom-1/4 on left/right edges
 
 class _AmbientBlob extends StatelessWidget {
   const _AmbientBlob({
@@ -508,8 +526,7 @@ class _AmbientBlob extends StatelessWidget {
       left:   left,
       child: IgnorePointer(
         child: ImageFiltered(
-          // blur-[100px] ≈ sigmaX/Y of ~50
-          imageFilter: ImageFilter.blur(sigmaX: 50, sigmaY: 50),
+          imageFilter: ImageFilter.blur(sigmaX: 55, sigmaY: 55),
           child: Container(
             width:  diameter,
             height: diameter,

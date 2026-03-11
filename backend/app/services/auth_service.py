@@ -1,9 +1,15 @@
-from passlib.context import CryptContext
+import bcrypt
 from sqlalchemy.orm import Session
 
 from app.models.user import User
 
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+
+def hash_password(password: str) -> str:
+    return bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
+
+
+def verify_password(plain_password: str, hashed_password: str) -> bool:
+    return bcrypt.checkpw(plain_password.encode("utf-8"), hashed_password.encode("utf-8"))
 
 
 def register_user(
@@ -24,7 +30,7 @@ def register_user(
     if password != confirm_password:
         raise ValueError("Passwords do not match")
 
-    hashed_password = pwd_context.hash(password)
+    hashed_password = hash_password(password)
 
     new_user = User(
         full_name=full_name,

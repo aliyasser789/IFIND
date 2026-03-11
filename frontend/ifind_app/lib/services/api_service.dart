@@ -1,6 +1,8 @@
 import 'package:dio/dio.dart';
 
-const String baseUrl = "http://localhost:8000";
+// 10.0.2.2 maps to the host machine's localhost when running on Android emulator.
+// For a physical device, replace with your machine's LAN IP (e.g. http://192.168.1.x:8000).
+const String baseUrl = "http://10.0.2.2:8000";
 
 class ApiService {
   final Dio _dio = Dio(BaseOptions(baseUrl: baseUrl));
@@ -18,6 +20,47 @@ class ApiService {
         print('DioException message: ${e.message}');
       }
       return false;
+    }
+  }
+
+  /// POST /auth/register
+  /// Returns {success: bool, message: String}
+  Future<Map<String, dynamic>> register({
+    required String fullName,
+    required int age,
+    required String email,
+    required String username,
+    required String password,
+    required String confirmPassword,
+  }) async {
+    try {
+      final response = await _dio.post(
+        '/auth/register',
+        data: {
+          'full_name': fullName,
+          'age': age,
+          'email': email,
+          'username': username,
+          'password': password,
+          'confirm_password': confirmPassword,
+        },
+      );
+      final message =
+          (response.data as Map<String, dynamic>)['message'] as String? ??
+              'Account created.';
+      return {'success': true, 'message': message};
+    } on DioException catch (e) {
+      if (e.response != null) {
+        final data = e.response!.data;
+        final detail = (data is Map)
+            ? (data['detail'] ?? 'Registration failed')
+            : 'Registration failed';
+        return {'success': false, 'message': detail.toString()};
+      }
+      return {
+        'success': false,
+        'message': 'Cannot connect to server. Is the backend running?',
+      };
     }
   }
 }

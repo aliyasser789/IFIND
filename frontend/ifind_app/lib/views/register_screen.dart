@@ -68,6 +68,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
     if (int.tryParse(_ageController.text.trim()) == null) return 'Age must be a number';
     if (_passwordController.text.isEmpty)                 return 'Password is required';
     if (_confirmPasswordController.text.isEmpty)          return 'Please confirm your password';
+    if (_passwordController.text != _confirmPasswordController.text) {
+      return 'Passwords do not match';
+    }
     return null;
   }
 
@@ -80,22 +83,28 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
     setState(() => _isLoading = true);
 
-    final result = await ApiService().register(
-      fullName:        _fullNameController.text.trim(),
-      age:             int.parse(_ageController.text.trim()),
-      email:           _emailController.text.trim(),
-      username:        _usernameController.text.trim(),
-      password:        _passwordController.text,
-      confirmPassword: _confirmPasswordController.text,
-    );
+    try {
+      final result = await ApiService().register(
+        fullName:        _fullNameController.text.trim(),
+        age:             int.parse(_ageController.text.trim()),
+        email:           _emailController.text.trim(),
+        username:        _usernameController.text.trim(),
+        password:        _passwordController.text,
+        confirmPassword: _confirmPasswordController.text,
+      );
 
-    if (!mounted) return;
-    setState(() => _isLoading = false);
+      if (!mounted) return;
+      setState(() => _isLoading = false);
 
-    if (result['success'] == true) {
-      _showSuccessDialog(result['message'] as String);
-    } else {
-      _showSnackbar(result['message'] as String, isError: true);
+      if (result['success'] == true) {
+        _showSuccessDialog(result['message'] as String);
+      } else {
+        _showSnackbar(result['message'] as String, isError: true);
+      }
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _isLoading = false);
+      _showSnackbar('Something went wrong. Please try again.', isError: true);
     }
   }
 

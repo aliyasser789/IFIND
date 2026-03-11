@@ -5,7 +5,11 @@ import 'package:dio/dio.dart';
 const String baseUrl = "http://10.0.2.2:8000";
 
 class ApiService {
-  final Dio _dio = Dio(BaseOptions(baseUrl: baseUrl));
+  final Dio _dio = Dio(BaseOptions(
+    baseUrl: baseUrl,
+    connectTimeout: const Duration(seconds: 8),
+    receiveTimeout: const Duration(seconds: 8),
+  ));
 
   Future<bool> pingServer() async {
     try {

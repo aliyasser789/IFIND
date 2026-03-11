@@ -15,6 +15,8 @@ from app.DB_handeling.engine import engine
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from app.routers.auth import router as auth_router
+
 app = FastAPI(title="IFind API")
 
 app.add_middleware(
@@ -26,6 +28,8 @@ app.add_middleware(
 )
 
 Base.metadata.create_all(bind=engine)
+
+app.include_router(auth_router)
 
 
 @app.get("/ping")

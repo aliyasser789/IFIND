@@ -24,6 +24,7 @@ sys.path.append(os.path.join(os.path.dirname(__file__), '../..'))
 
 from DB_handeling.base import Base
 from DB_handeling.config import DATABASE_URL
+from app.models.user import User  # noqa: F401 — registers User with Base.metadata
 
 target_metadata = Base.metadata
 

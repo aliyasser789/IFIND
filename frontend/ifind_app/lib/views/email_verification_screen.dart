@@ -7,7 +7,7 @@ import 'package:google_fonts/google_fonts.dart';
 
 import '../services/api_service.dart';
 import '../services/storage_service.dart';
-import 'auth_screen.dart';
+import 'id_verification_screen.dart';
 
 // ── Design tokens (identical palette to all other screens) ───────────────────
 const _kPrimary      = Color(0xFF135BEC);
@@ -115,13 +115,12 @@ class _EmailVerificationScreenState extends State<EmailVerificationScreen> {
       // Remove pending flag — email is now verified.
       await StorageService().deletePendingEmail();
       if (!mounted) return;
-      _showSnackbar('Email verified! Please log in.', isError: false);
+      _showSnackbar('Email verified!', isError: false);
       await Future.delayed(const Duration(milliseconds: 1200));
       if (!mounted) return;
-      Navigator.pushAndRemoveUntil(
+      Navigator.pushReplacement(
         context,
-        MaterialPageRoute(builder: (_) => const AuthScreen()),
-        (_) => false,
+        MaterialPageRoute(builder: (_) => const IdVerificationScreen()),
       );
     } else {
       _showSnackbar(result['message'] as String, isError: true);
@@ -151,10 +150,7 @@ class _EmailVerificationScreenState extends State<EmailVerificationScreen> {
   // ── Build ────────────────────────────────────────────────────────────────────
   @override
   Widget build(BuildContext context) {
-    return PopScope(
-      // Prevents system back-button — no way to skip verification.
-      canPop: false,
-      child: Scaffold(
+    return Scaffold(
         backgroundColor:        _kBackground,
         resizeToAvoidBottomInset: true,
         body: Stack(
@@ -186,7 +182,21 @@ class _EmailVerificationScreenState extends State<EmailVerificationScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      const SizedBox(height: _sp48),
+                      // ── Back button ───────────────────────────────────
+                      Align(
+                        alignment: Alignment.centerLeft,
+                        child: Padding(
+                          padding: const EdgeInsets.only(top: _sp8),
+                          child: IconButton(
+                            icon: const Icon(
+                              Icons.arrow_back_ios_new_rounded,
+                              color: Color(0xFFCBD5E1),
+                              size:  20,
+                            ),
+                            onPressed: () => Navigator.of(context).pop(),
+                          ),
+                        ),
+                      ),
 
                       // Logo + brand
                       const _VerifyLogoSection(),
@@ -279,8 +289,7 @@ class _EmailVerificationScreenState extends State<EmailVerificationScreen> {
             ),
           ],
         ),
-      ),
-    );
+      );
   }
 }
 

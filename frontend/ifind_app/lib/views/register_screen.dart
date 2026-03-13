@@ -5,6 +5,8 @@ import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import '../services/api_service.dart';
+import '../services/storage_service.dart';
+import 'email_verification_screen.dart';
 
 // ── Design tokens (identical to auth_screen.dart) ────────────────────────────
 const _kPrimary      = Color(0xFF135BEC);
@@ -97,7 +99,15 @@ class _RegisterScreenState extends State<RegisterScreen> {
       setState(() => _isLoading = false);
 
       if (result['success'] == true) {
-        _showSuccessDialog(result['message'] as String);
+        final email = _emailController.text.trim();
+        await StorageService().savePendingEmail(email);
+        if (!mounted) return;
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(
+            builder: (_) => EmailVerificationScreen(email: email),
+          ),
+        );
       } else {
         _showSnackbar(result['message'] as String, isError: true);
       }
@@ -122,44 +132,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
         shape:    RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(12)),
         margin: const EdgeInsets.all(_sp16),
-      ),
-    );
-  }
-
-  void _showSuccessDialog(String message) {
-    showDialog<void>(
-      context:           context,
-      barrierDismissible: false,
-      builder: (_) => AlertDialog(
-        backgroundColor: const Color(0xFF1E293B),
-        shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(20)),
-        title: Text(
-          'Account Created',
-          style: GoogleFonts.manrope(
-            color: Colors.white, fontSize: 20, fontWeight: FontWeight.w700,
-          ),
-        ),
-        content: Text(
-          message,
-          style: GoogleFonts.manrope(color: _kSlate300, fontSize: 14),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () {
-              Navigator.of(context).pop(); // close dialog
-              Navigator.of(context).pop(); // back to login
-            },
-            child: Text(
-              'Go to Login',
-              style: GoogleFonts.manrope(
-                color:      _kPrimary,
-                fontSize:   14,
-                fontWeight: FontWeight.w700,
-              ),
-            ),
-          ),
-        ],
       ),
     );
   }

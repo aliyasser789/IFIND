@@ -1,7 +1,11 @@
+import random
+
 import bcrypt
+from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
 
 from app.models.user import User
+from app.services import email_service, otp_service
 
 
 def hash_password(password: str) -> str:
@@ -47,3 +51,30 @@ def register_user(
     db.refresh(new_user)
 
     return {"message": "Account created. Please verify your email."}
+
+
+def send_verification_code(db: Session, email: str) -> dict:
+    user = db.query(User).filter(User.email == email).first()
+    if not user:
+        raise ValueError("No account found with that email")
+
+    code = str(random.randint(100000, 999999))
+    otp_service.save_otp(email, code)
+    email_service.send_verification_email(email, code)
+
+    return {"message": "Verification code sent to your email"}
+
+
+def confirm_verification_code(db: Session, email: str, code: str) -> dict:
+    if not otp_service.verify_otp(email, code):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid or expired code",
+        )
+
+    user = db.query(User).filter(User.email == email).first()
+    user.email_verified = True
+    db.commit()
+    otp_service.delete_otp(email)
+
+    return {"message": "Email verified successfully"}

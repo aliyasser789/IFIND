@@ -27,6 +27,65 @@ class ApiService {
     }
   }
 
+  /// POST /auth/send-verification
+  /// Returns {success: bool, message: String}
+  Future<Map<String, dynamic>> sendVerificationCode({
+    required String email,
+  }) async {
+    try {
+      final response = await _dio.post(
+        '/auth/send-verification',
+        data: {'email': email},
+      );
+      final message =
+          (response.data as Map<String, dynamic>)['message'] as String? ??
+              'Code sent.';
+      return {'success': true, 'message': message};
+    } on DioException catch (e) {
+      if (e.response != null) {
+        final data   = e.response!.data;
+        final detail = (data is Map)
+            ? (data['detail'] ?? 'Failed to send code')
+            : 'Failed to send code';
+        return {'success': false, 'message': detail.toString()};
+      }
+      return {
+        'success': false,
+        'message': 'Cannot connect to server. Is the backend running?',
+      };
+    }
+  }
+
+  /// POST /auth/verify-email
+  /// Returns {success: bool, message: String}
+  Future<Map<String, dynamic>> verifyEmail({
+    required String email,
+    required String code,
+  }) async {
+    try {
+      final response = await _dio.post(
+        '/auth/verify-email',
+        data: {'email': email, 'code': code},
+      );
+      final message =
+          (response.data as Map<String, dynamic>)['message'] as String? ??
+              'Email verified.';
+      return {'success': true, 'message': message};
+    } on DioException catch (e) {
+      if (e.response != null) {
+        final data   = e.response!.data;
+        final detail = (data is Map)
+            ? (data['detail'] ?? 'Verification failed')
+            : 'Verification failed';
+        return {'success': false, 'message': detail.toString()};
+      }
+      return {
+        'success': false,
+        'message': 'Cannot connect to server. Is the backend running?',
+      };
+    }
+  }
+
   /// POST /auth/register
   /// Returns {success: bool, message: String}
   Future<Map<String, dynamic>> register({

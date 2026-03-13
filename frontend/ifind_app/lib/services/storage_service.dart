@@ -15,4 +15,22 @@ class StorageService {
   Future<void> deleteToken() async {
     await _storage.delete(key: _tokenKey);
   }
+
+  // ── Pending email verification ─────────────────────────────────────────────
+  // Saved after register; deleted after successful email verification.
+  // Used by SplashScreen to redirect unverified users back to the verify screen.
+
+  static const _pendingEmailKey = 'pending_verification_email';
+
+  Future<String?> getPendingEmail() async {
+    return await _storage.read(key: _pendingEmailKey);
+  }
+
+  Future<void> savePendingEmail(String email) async {
+    await _storage.write(key: _pendingEmailKey, value: email);
+  }
+
+  Future<void> deletePendingEmail() async {
+    await _storage.delete(key: _pendingEmailKey);
+  }
 }

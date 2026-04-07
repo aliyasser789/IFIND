@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:ifind_app/services/api_service.dart';
+import 'package:ifind_app/services/storage_service.dart';
 import 'package:ifind_app/views/onboarding_screen.dart';
 
 // ── Design tokens (identical palette to all other screens) ───────────────────
@@ -28,7 +29,9 @@ const double _sp48 = 48;
 // Shown after email verification is complete.
 // ─────────────────────────────────────────────────────────────────────────────
 class IdVerificationScreen extends StatefulWidget {
-  const IdVerificationScreen({super.key});
+  const IdVerificationScreen({super.key, required this.email});
+
+  final String email;
 
   @override
   State<IdVerificationScreen> createState() => _IdVerificationScreenState();
@@ -64,12 +67,20 @@ class _IdVerificationScreenState extends State<IdVerificationScreen> {
 
     setState(() => _isLoading = true);
 
-    final result = await _apiService.verifyId(imageFile: _frontImage!);
+    final result = await _apiService.verifyId(
+      email: widget.email,
+      imageFile: _frontImage!,
+    );
 
     if (!mounted) return;
     setState(() => _isLoading = false);
 
     if (result['success'] == true && result['verified'] == true) {
+      // Token is issued here for the first time — both verifications complete.
+      final token = result['access_token'] as String?;
+      if (token != null) {
+        await StorageService().saveToken(token);
+      }
       await _apiService.uploadIdBack(imageFile: _backImage!);
       if (!mounted) return;
       Navigator.of(context).pushReplacement(

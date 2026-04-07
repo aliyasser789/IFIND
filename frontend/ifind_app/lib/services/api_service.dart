@@ -60,7 +60,7 @@ class ApiService {
   }
 
   /// POST /auth/verify-email
-  /// Returns {success: bool, message: String}
+  /// Returns {success: bool, message: String} — no token at this stage.
   Future<Map<String, dynamic>> verifyEmail({
     required String email,
     required String code,
@@ -72,8 +72,7 @@ class ApiService {
       );
       final data = response.data as Map<String, dynamic>;
       final message = data['message'] as String? ?? 'Email verified.';
-      final token = data['access_token'] as String?;
-      return {'success': true, 'message': message, 'access_token': token};
+      return {'success': true, 'message': message};
     } on DioException catch (e) {
       if (e.response != null) {
         final data = e.response!.data;
@@ -90,18 +89,16 @@ class ApiService {
   }
 
   /// POST /auth/verify-id
-  /// Sends front-of-ID image as multipart with Bearer JWT.
-  /// Returns {success: bool, verified: bool, ...fields or error: String}
-  Future<Map<String, dynamic>> verifyId({required File imageFile}) async {
-    final token = await StorageService().getToken();
-    if (token == null) {
-      return {
-        'success': false,
-        'error': 'Not authenticated. Please log in again.'
-      };
-    }
+  /// Sends the user's email and front-of-ID image as multipart — no JWT required.
+  /// On success the backend returns the JWT token for the first time.
+  /// Returns {success: bool, verified: bool, access_token: String?, ...fields or error: String}
+  Future<Map<String, dynamic>> verifyId({
+    required String email,
+    required File imageFile,
+  }) async {
     try {
       final formData = FormData.fromMap({
+        'email': email,
         'file': await MultipartFile.fromFile(
           imageFile.path,
           filename: 'id_front.jpg',
@@ -110,7 +107,6 @@ class ApiService {
       final response = await _dio.post(
         '/auth/verify-id',
         data: formData,
-        options: Options(headers: {'Authorization': 'Bearer $token'}),
       );
       final data = response.data as Map<String, dynamic>;
       return {'success': true, ...data};

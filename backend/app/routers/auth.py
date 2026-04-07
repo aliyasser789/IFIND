@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
+from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
@@ -65,30 +65,38 @@ def send_verification(body: SendVerificationRequest, db: Session = Depends(get_d
 @router.post("/verify-email", status_code=status.HTTP_200_OK)
 def verify_email(body: VerifyEmailRequest, db: Session = Depends(get_db)):
     confirm_verification_code(db=db, email=body.email, code=body.code)
-    user = db.query(User).filter(User.email == body.email).first()
-    token = create_access_token(user_id=str(user.id))
-    return {"message": "Email verified successfully", "access_token": token, "token_type": "bearer"}
+    return {"message": "Email verified successfully"}
 
 
 @router.post("/verify-id", status_code=status.HTTP_200_OK)
 async def verify_id(
+    email: str = Form(...),
     file: UploadFile = File(...),
-    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
     """
     Upload one ID card image (JPEG/PNG).
-    Requires a valid Bearer JWT token.
-    On success, marks the user as id_verified and saves their national ID number.
+    Requires the user's verified email as a form field (no JWT yet at this stage).
+    On success, marks the user as id_verified, saves their national ID number,
+    and returns a JWT token — the first token issued in the registration flow.
     """
+    user = db.query(User).filter(User.email == email).first()
+    if not user or not user.email_verified:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Email not verified",
+        )
+
     image_bytes = await file.read()
     result = verify_id_card(image_bytes)
 
     if result.get("verified"):
-        current_user.id_verified = True
-        current_user.national_id_num = result["national_id"]
-        current_user.id_image_front = file.filename
+        user.id_verified = True
+        user.national_id_num = result["national_id"]
+        user.id_image_front = file.filename
         db.commit()
+        token = create_access_token(user_id=str(user.id))
+        return {**result, "access_token": token, "token_type": "bearer"}
 
     return result
 

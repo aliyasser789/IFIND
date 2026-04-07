@@ -112,6 +112,11 @@ class _EmailVerificationScreenState extends State<EmailVerificationScreen> {
     setState(() => _isVerifying = false);
 
     if (result['success'] == true) {
+      // Save JWT so ID verification screen can attach it to its request.
+      final token = result['access_token'] as String?;
+      if (token != null) {
+        await StorageService().saveToken(token);
+      }
       // Remove pending flag — email is now verified.
       await StorageService().deletePendingEmail();
       if (!mounted) return;

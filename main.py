@@ -7,7 +7,7 @@ sys.path.insert(0, BACKEND_DIR)
 
 from dotenv import load_dotenv
 
-load_dotenv(os.path.join(BASE_DIR, ".env"))
+load_dotenv(os.path.join(BACKEND_DIR, ".env"))
 
 from app.DB_handeling.base import Base
 from app.DB_handeling.engine import engine

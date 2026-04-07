@@ -1,7 +1,11 @@
+import 'dart:io';
 import 'dart:ui';
 
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:ifind_app/services/api_service.dart';
+import 'package:ifind_app/views/onboarding_screen.dart';
 
 // ── Design tokens (identical palette to all other screens) ───────────────────
 const _kPrimary      = Color(0xFF135BEC);
@@ -23,8 +27,72 @@ const double _sp48 = 48;
 // IdVerificationScreen
 // Shown after email verification is complete.
 // ─────────────────────────────────────────────────────────────────────────────
-class IdVerificationScreen extends StatelessWidget {
+class IdVerificationScreen extends StatefulWidget {
   const IdVerificationScreen({super.key});
+
+  @override
+  State<IdVerificationScreen> createState() => _IdVerificationScreenState();
+}
+
+class _IdVerificationScreenState extends State<IdVerificationScreen> {
+  final _picker     = ImagePicker();
+  final _apiService = ApiService();
+
+  File? _frontImage;
+  File? _backImage;
+  bool  _isLoading = false;
+
+  Future<void> _pickFront() async {
+    final picked = await _picker.pickImage(source: ImageSource.camera);
+    if (picked != null) setState(() => _frontImage = File(picked.path));
+  }
+
+  Future<void> _pickBack() async {
+    final picked = await _picker.pickImage(source: ImageSource.camera);
+    if (picked != null) setState(() => _backImage = File(picked.path));
+  }
+
+  Future<void> _submit() async {
+    if (_frontImage == null) {
+      _showError('Please take a photo of the front of your ID');
+      return;
+    }
+    if (_backImage == null) {
+      _showError('Please take a photo of the back of your ID');
+      return;
+    }
+
+    setState(() => _isLoading = true);
+
+    final result = await _apiService.verifyId(imageFile: _frontImage!);
+
+    if (!mounted) return;
+    setState(() => _isLoading = false);
+
+    if (result['success'] == true && result['verified'] == true) {
+      await _apiService.uploadIdBack(imageFile: _backImage!);
+      if (!mounted) return;
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute(builder: (_) => const OnboardingScreen()),
+      );
+    } else {
+      final error = result['error'] as String? ??
+          (result['verified'] == false
+              ? 'ID could not be verified. Please try again with a clearer photo.'
+              : 'Something went wrong. Please try again.');
+      _showError(error);
+    }
+  }
+
+  void _showError(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message, style: GoogleFonts.manrope(color: Colors.white)),
+        backgroundColor: Colors.redAccent,
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -111,7 +179,8 @@ class IdVerificationScreen extends StatelessWidget {
                     _UploadCard(
                       label:    'Front of ID',
                       icon:     Icons.credit_card_rounded,
-                      onTap:    () {},
+                      captured: _frontImage != null,
+                      onTap:    _isLoading ? null : _pickFront,
                     ),
                     const SizedBox(height: _sp16),
 
@@ -119,28 +188,28 @@ class IdVerificationScreen extends StatelessWidget {
                     _UploadCard(
                       label:    'Back of ID',
                       icon:     Icons.credit_card_off_rounded,
-                      onTap:    () {},
+                      captured: _backImage != null,
+                      onTap:    _isLoading ? null : _pickBack,
                     ),
                     const SizedBox(height: _sp48),
 
                     // ── Submit button ───────────────────────────────────
-                    _IdSubmitButton(onTap: () {}),
-                    const SizedBox(height: _sp24),
+                    _IdSubmitButton(
+                      onTap:     _isLoading ? null : _submit,
+                      isLoading: _isLoading,
+                    ),
+                    const SizedBox(height: 12),
 
-                    // ── Skip link ───────────────────────────────────────
-                    GestureDetector(
-                      onTap: () {},
-                      child: Text(
-                        'Skip for now',
-                        textAlign: TextAlign.center,
-                        style: GoogleFonts.manrope(
-                          color:      _kSlate500,
-                          fontSize:   14,
-                          fontWeight: FontWeight.w600,
-                        ),
+                    // ── Lighting hint ────────────────────────────────────
+                    Text(
+                      'Please ensure good lighting when taking your ID photo for accurate scanning',
+                      textAlign: TextAlign.center,
+                      style: GoogleFonts.manrope(
+                        color:    Colors.grey,
+                        fontSize: 12,
                       ),
                     ),
-                    const SizedBox(height: _sp48),
+                    const SizedBox(height: _sp24),
                   ],
                 ),
               ),
@@ -158,11 +227,13 @@ class _UploadCard extends StatelessWidget {
     required this.label,
     required this.icon,
     required this.onTap,
+    required this.captured,
   });
 
-  final String     label;
-  final IconData   icon;
-  final VoidCallback onTap;
+  final String      label;
+  final IconData    icon;
+  final VoidCallback? onTap;
+  final bool        captured;
 
   @override
   Widget build(BuildContext context) {
@@ -173,12 +244,17 @@ class _UploadCard extends StatelessWidget {
         decoration: BoxDecoration(
           color:        const Color(0x99192233),
           borderRadius: BorderRadius.circular(16),
-          border:       Border.all(color: _kInputBorder, width: 1),
+          border: Border.all(
+            color: captured ? _kPrimary : _kInputBorder,
+            width: captured ? 2 : 1,
+          ),
         ),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(icon, color: _kPrimary, size: 36),
+            captured
+                ? const Icon(Icons.check_circle_rounded, color: _kPrimary, size: 36)
+                : Icon(icon, color: _kPrimary, size: 36),
             const SizedBox(height: 10),
             Text(
               label,
@@ -190,9 +266,9 @@ class _UploadCard extends StatelessWidget {
             ),
             const SizedBox(height: 4),
             Text(
-              'Tap to upload',
+              captured ? 'Photo captured ✓' : 'Tap to take photo',
               style: GoogleFonts.manrope(
-                color:    _kSlate500,
+                color:    captured ? _kPrimary : _kSlate500,
                 fontSize: 12,
               ),
             ),
@@ -205,9 +281,10 @@ class _UploadCard extends StatelessWidget {
 
 // ─── Submit Button ────────────────────────────────────────────────────────────
 class _IdSubmitButton extends StatelessWidget {
-  const _IdSubmitButton({required this.onTap});
+  const _IdSubmitButton({required this.onTap, required this.isLoading});
 
   final VoidCallback? onTap;
+  final bool          isLoading;
 
   @override
   Widget build(BuildContext context) {
@@ -231,14 +308,21 @@ class _IdSubmitButton extends StatelessWidget {
           ],
         ),
         child: Center(
-          child: Text(
-            'Submit ID',
-            style: GoogleFonts.manrope(
-              color:      Colors.white,
-              fontSize:   17,
-              fontWeight: FontWeight.w700,
-            ),
-          ),
+          child: isLoading
+              ? const SizedBox(
+                  width: 24, height: 24,
+                  child: CircularProgressIndicator(
+                    color: Colors.white, strokeWidth: 2.5,
+                  ),
+                )
+              : Text(
+                  'Submit ID',
+                  style: GoogleFonts.manrope(
+                    color:      Colors.white,
+                    fontSize:   17,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
         ),
       ),
     );

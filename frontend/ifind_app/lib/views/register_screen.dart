@@ -111,10 +111,12 @@ class _RegisterScreenState extends State<RegisterScreen> {
       } else {
         _showSnackbar(result['message'] as String, isError: true);
       }
-    } catch (_) {
+    } catch (e, st) {
+      print('[RegisterScreen] Unexpected error: $e');
+      print('[RegisterScreen] Stack trace: $st');
       if (!mounted) return;
       setState(() => _isLoading = false);
-      _showSnackbar('Something went wrong. Please try again.', isError: true);
+      _showSnackbar('Error: $e', isError: true);
     }
   }
 

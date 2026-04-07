@@ -1,8 +1,11 @@
+import 'dart:io';
+
 import 'package:dio/dio.dart';
+import 'package:ifind_app/services/storage_service.dart';
 
 // 10.0.2.2 maps to the host machine's localhost when running on Android emulator.
 // For a physical device, replace with your machine's LAN IP (e.g. http://192.168.1.x:8000).
-const String baseUrl = "http://10.0.2.2:8000";
+const String baseUrl = "http://192.168.100.194:8000";
 
 class ApiService {
   final Dio _dio = Dio(BaseOptions(
@@ -43,7 +46,7 @@ class ApiService {
       return {'success': true, 'message': message};
     } on DioException catch (e) {
       if (e.response != null) {
-        final data   = e.response!.data;
+        final data = e.response!.data;
         final detail = (data is Map)
             ? (data['detail'] ?? 'Failed to send code')
             : 'Failed to send code';
@@ -67,16 +70,124 @@ class ApiService {
         '/auth/verify-email',
         data: {'email': email, 'code': code},
       );
-      final message =
-          (response.data as Map<String, dynamic>)['message'] as String? ??
-              'Email verified.';
-      return {'success': true, 'message': message};
+      final data = response.data as Map<String, dynamic>;
+      final message = data['message'] as String? ?? 'Email verified.';
+      final token = data['access_token'] as String?;
+      return {'success': true, 'message': message, 'access_token': token};
     } on DioException catch (e) {
       if (e.response != null) {
-        final data   = e.response!.data;
+        final data = e.response!.data;
         final detail = (data is Map)
             ? (data['detail'] ?? 'Verification failed')
             : 'Verification failed';
+        return {'success': false, 'message': detail.toString()};
+      }
+      return {
+        'success': false,
+        'message': 'Cannot connect to server. Is the backend running?',
+      };
+    }
+  }
+
+  /// POST /auth/verify-id
+  /// Sends front-of-ID image as multipart with Bearer JWT.
+  /// Returns {success: bool, verified: bool, ...fields or error: String}
+  Future<Map<String, dynamic>> verifyId({required File imageFile}) async {
+    final token = await StorageService().getToken();
+    if (token == null) {
+      return {
+        'success': false,
+        'error': 'Not authenticated. Please log in again.'
+      };
+    }
+    try {
+      final formData = FormData.fromMap({
+        'file': await MultipartFile.fromFile(
+          imageFile.path,
+          filename: 'id_front.jpg',
+        ),
+      });
+      final response = await _dio.post(
+        '/auth/verify-id',
+        data: formData,
+        options: Options(headers: {'Authorization': 'Bearer $token'}),
+      );
+      final data = response.data as Map<String, dynamic>;
+      return {'success': true, ...data};
+    } on DioException catch (e) {
+      if (e.response != null) {
+        final data = e.response!.data;
+        final detail = (data is Map)
+            ? (data['detail'] ?? 'Verification failed')
+            : 'Verification failed';
+        return {'success': false, 'error': detail.toString()};
+      }
+      return {
+        'success': false,
+        'error': 'Cannot connect to server. Is the backend running?'
+      };
+    }
+  }
+
+  /// POST /auth/upload-id-back
+  /// Sends back-of-ID image as multipart with Bearer JWT.
+  /// Returns {success: bool, message: String}
+  Future<Map<String, dynamic>> uploadIdBack({required File imageFile}) async {
+    final token = await StorageService().getToken();
+    if (token == null) {
+      return {
+        'success': false,
+        'error': 'Not authenticated. Please log in again.'
+      };
+    }
+    try {
+      final formData = FormData.fromMap({
+        'file': await MultipartFile.fromFile(
+          imageFile.path,
+          filename: 'id_back.jpg',
+        ),
+      });
+      final response = await _dio.post(
+        '/auth/upload-id-back',
+        data: formData,
+        options: Options(headers: {'Authorization': 'Bearer $token'}),
+      );
+      final data = response.data as Map<String, dynamic>;
+      return {'success': true, ...data};
+    } on DioException catch (e) {
+      if (e.response != null) {
+        final data = e.response!.data;
+        final detail = (data is Map)
+            ? (data['detail'] ?? 'Upload failed')
+            : 'Upload failed';
+        return {'success': false, 'error': detail.toString()};
+      }
+      return {
+        'success': false,
+        'error': 'Cannot connect to server. Is the backend running?'
+      };
+    }
+  }
+
+  /// POST /auth/login
+  /// Returns {success: bool, access_token: String?, message: String}
+  Future<Map<String, dynamic>> login({
+    required String email,
+    required String password,
+  }) async {
+    try {
+      final response = await _dio.post(
+        '/auth/login',
+        data: {'email': email, 'password': password},
+      );
+      final data = response.data as Map<String, dynamic>;
+      return {'success': true, 'access_token': data['access_token']};
+    } on DioException catch (e) {
+      if (e.response != null) {
+        final data = e.response!.data;
+        final detail = (data is Map)
+            ? (data['detail'] ?? 'Login failed')
+            : 'Login failed';
         return {'success': false, 'message': detail.toString()};
       }
       return {

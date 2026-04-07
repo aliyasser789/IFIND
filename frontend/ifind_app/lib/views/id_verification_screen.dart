@@ -6,6 +6,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:ifind_app/services/api_service.dart';
 import 'package:ifind_app/services/storage_service.dart';
+import 'package:ifind_app/views/auth_screen.dart';
 import 'package:ifind_app/views/onboarding_screen.dart';
 
 // ── Design tokens (identical palette to all other screens) ───────────────────
@@ -95,6 +96,13 @@ class _IdVerificationScreenState extends State<IdVerificationScreen> {
     }
   }
 
+  void _goToAuth() {
+    Navigator.of(context).pushAndRemoveUntil(
+      MaterialPageRoute(builder: (_) => const AuthScreen()),
+      (_) => false,
+    );
+  }
+
   void _showError(String message) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -107,10 +115,15 @@ class _IdVerificationScreenState extends State<IdVerificationScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor:          _kBackground,
-      resizeToAvoidBottomInset: true,
-      body: Stack(
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop) _goToAuth();
+      },
+      child: Scaffold(
+        backgroundColor:          _kBackground,
+        resizeToAvoidBottomInset: true,
+        body: Stack(
         fit: StackFit.expand,
         children: [
           // ── Layer 1: background ─────────────────────────────────────────
@@ -150,7 +163,7 @@ class _IdVerificationScreenState extends State<IdVerificationScreen> {
                             color: _kSlate300,
                             size:  20,
                           ),
-                          onPressed: () => Navigator.of(context).pop(),
+                          onPressed: _goToAuth,
                         ),
                       ),
                     ),
@@ -227,6 +240,7 @@ class _IdVerificationScreenState extends State<IdVerificationScreen> {
             ),
           ),
         ],
+        ),
       ),
     );
   }

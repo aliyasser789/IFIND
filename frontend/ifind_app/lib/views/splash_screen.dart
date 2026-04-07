@@ -7,6 +7,7 @@ import 'package:google_fonts/google_fonts.dart';
 import '../services/storage_service.dart';
 import 'auth_screen.dart';
 import 'home_screen.dart';
+import 'id_verification_screen.dart';
 
 // ─── Design tokens ──────────────────────────────────────────────────────────
 const _kPrimary      = Color(0xFF135BEC);
@@ -88,13 +89,34 @@ class _SplashScreenState extends State<SplashScreen>
     if (!mounted) return;
     final token = await StorageService().getToken();
     if (!mounted) return;
-    Navigator.pushReplacement(
-      context,
-      MaterialPageRoute(
-        builder: (_) =>
-            token != null ? const HomeScreen() : const AuthScreen(),
-      ),
-    );
+
+    if (token == null) {
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (_) => const AuthScreen()),
+      );
+      return;
+    }
+
+    final idVerified = await StorageService().getIdVerified();
+    if (!mounted) return;
+
+    if (idVerified) {
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (_) => const HomeScreen()),
+      );
+    } else {
+      final email = await StorageService().getUserEmail() ?? '';
+      if (!mounted) return;
+      Navigator.pushAndRemoveUntil(
+        context,
+        MaterialPageRoute(
+          builder: (_) => IdVerificationScreen(email: email),
+        ),
+        (_) => false,
+      );
+    }
   }
 
   @override

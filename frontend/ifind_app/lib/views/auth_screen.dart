@@ -7,6 +7,7 @@ import '../services/api_service.dart';
 import '../services/storage_service.dart';
 import 'forgot_password_screen.dart';
 import 'home_screen.dart';
+import 'id_verification_screen.dart';
 import 'register_screen.dart';
 
 // ── Design tokens (shared palette from splash_screen.dart) ──────────────────
@@ -80,10 +81,17 @@ class _AuthScreenState extends State<AuthScreen> {
 
     if (result['success'] == true) {
       await StorageService().saveToken(result['access_token'] as String);
+      await StorageService().saveIdVerified(result['id_verified'] ?? false);
+      await StorageService().saveUserEmail(email);
       if (!mounted) return;
+      final idVerified = result['id_verified'] as bool? ?? false;
       Navigator.pushAndRemoveUntil(
         context,
-        MaterialPageRoute(builder: (_) => const HomeScreen()),
+        MaterialPageRoute(
+          builder: (_) => idVerified
+              ? const HomeScreen()
+              : IdVerificationScreen(email: email),
+        ),
         (_) => false,
       );
     } else {

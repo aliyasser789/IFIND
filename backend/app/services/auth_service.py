@@ -98,6 +98,54 @@ def create_access_token(user_id: str, expires_delta: timedelta = timedelta(hours
     return jwt.encode(payload, SECRET_KEY, algorithm=ALGORITHM)
 
 
+def send_reset_code(db: Session, email: str) -> dict:
+    user = db.query(User).filter(User.email == email).first()
+    if not user:
+        raise ValueError("No account found with that email")
+
+    code = str(random.randint(100000, 999999))
+    otp_service.save_otp(f"reset_{email}", code)
+    email_service.send_reset_email(email, code)
+
+    return {"message": "Password reset code sent to your email"}
+
+
+def verify_reset_code(email: str, otp_code: str) -> dict:
+    if not otp_service.verify_otp(f"reset_{email}", otp_code):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid or expired reset code",
+        )
+    # OTP is intentionally NOT deleted here — reset-password endpoint needs it for session validation
+    return {"message": "Reset code verified successfully"}
+
+
+def reset_password(db: Session, email: str, new_password: str, confirm_password: str) -> dict:
+    if new_password != confirm_password:
+        raise ValueError("Passwords do not match")
+
+    # Security check: ensure the user went through the OTP step (valid OTP session still exists)
+    if not otp_service.has_valid_otp(f"reset_{email}"):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Reset session expired or OTP not verified. Please restart the forgot password flow.",
+        )
+
+    user = db.query(User).filter(User.email == email).first()
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="No account found with that email",
+        )
+
+    user.password_hash = hash_password(new_password)
+    db.commit()
+
+    otp_service.delete_otp(f"reset_{email}")
+
+    return {"message": "Password reset successfully"}
+
+
 def get_current_user(
     token: str = Depends(_oauth2_scheme),
     db: Session = Depends(get_db),

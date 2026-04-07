@@ -7,8 +7,14 @@ import easyocr
 # Resolve model directory relative to this file so paths work regardless of cwd
 _MODELS_DIR = os.path.dirname(os.path.abspath(__file__))
 
-# Initialize EasyOCR reader (this should be done once for efficiency)
-reader = easyocr.Reader(['ar'], gpu=False)
+# Lazy-initialized EasyOCR reader so it doesn't block server startup
+_reader = None
+
+def _get_reader():
+    global _reader
+    if _reader is None:
+        _reader = easyocr.Reader(['ar'], gpu=False)
+    return _reader
 
 # Function to preprocess the cropped image
 def preprocess_image(cropped_image):
@@ -20,7 +26,7 @@ def extract_text(image, bbox, lang='ara'):
     x1, y1, x2, y2 = bbox
     cropped_image = image[y1:y2, x1:x2]
     preprocessed_image = preprocess_image(cropped_image)
-    results = reader.readtext(preprocessed_image, detail=0, paragraph=True)
+    results = _get_reader().readtext(preprocessed_image, detail=0, paragraph=True)
     text = ' '.join(results)
     return text.strip()
 

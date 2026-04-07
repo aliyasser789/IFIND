@@ -5,7 +5,7 @@ import 'package:ifind_app/services/storage_service.dart';
 
 // 10.0.2.2 maps to the host machine's localhost when running on Android emulator.
 // For a physical device, replace with your machine's LAN IP (e.g. http://192.168.1.x:8000).
-const String baseUrl = "http://192.168.100.194:8000";
+const String baseUrl = "http://192.168.1.7:8000";
 
 class ApiService {
   final Dio _dio = Dio(BaseOptions(
@@ -166,7 +166,7 @@ class ApiService {
   }
 
   /// POST /auth/login
-  /// Returns {success: bool, access_token: String?, message: String}
+  /// Returns {success: bool, access_token: String?, id_verified: bool?, message: String}
   Future<Map<String, dynamic>> login({
     required String email,
     required String password,
@@ -177,13 +177,101 @@ class ApiService {
         data: {'email': email, 'password': password},
       );
       final data = response.data as Map<String, dynamic>;
-      return {'success': true, 'access_token': data['access_token']};
+      return {
+        'success': true,
+        'access_token': data['access_token'],
+        'id_verified': data['id_verified'],
+      };
     } on DioException catch (e) {
       if (e.response != null) {
         final data = e.response!.data;
         final detail = (data is Map)
             ? (data['detail'] ?? 'Login failed')
             : 'Login failed';
+        return {'success': false, 'message': detail.toString()};
+      }
+      return {
+        'success': false,
+        'message': 'Cannot connect to server. Is the backend running?',
+      };
+    }
+  }
+
+  /// POST /auth/forgot-password
+  /// Returns {success: bool, message: String}
+  Future<Map<String, dynamic>> forgotPassword(String email) async {
+    try {
+      final response = await _dio.post(
+        '/auth/forgot-password',
+        data: {'email': email},
+      );
+      final data = response.data as Map<String, dynamic>;
+      final message = data['message'] as String? ?? 'Code sent.';
+      return {'success': true, 'message': message};
+    } on DioException catch (e) {
+      if (e.response != null) {
+        final data = e.response!.data;
+        final detail = (data is Map)
+            ? (data['detail'] ?? 'Failed to send reset code')
+            : 'Failed to send reset code';
+        return {'success': false, 'message': detail.toString()};
+      }
+      return {
+        'success': false,
+        'message': 'Cannot connect to server. Is the backend running?',
+      };
+    }
+  }
+
+  /// POST /auth/verify-reset-otp
+  /// Returns {success: bool, message: String}
+  Future<Map<String, dynamic>> verifyResetOtp(
+      String email, String otpCode) async {
+    try {
+      final response = await _dio.post(
+        '/auth/verify-reset-otp',
+        data: {'email': email, 'otp_code': otpCode},
+      );
+      final data = response.data as Map<String, dynamic>;
+      final message = data['message'] as String? ?? 'OTP verified.';
+      return {'success': true, 'message': message};
+    } on DioException catch (e) {
+      if (e.response != null) {
+        final data = e.response!.data;
+        final detail = (data is Map)
+            ? (data['detail'] ?? 'OTP verification failed')
+            : 'OTP verification failed';
+        return {'success': false, 'message': detail.toString()};
+      }
+      return {
+        'success': false,
+        'message': 'Cannot connect to server. Is the backend running?',
+      };
+    }
+  }
+
+  /// POST /auth/reset-password
+  /// Returns {success: bool, message: String}
+  Future<Map<String, dynamic>> resetPassword(
+      String email, String newPassword, String confirmPassword) async {
+    try {
+      final response = await _dio.post(
+        '/auth/reset-password',
+        data: {
+          'email': email,
+          'new_password': newPassword,
+          'confirm_password': confirmPassword,
+        },
+      );
+      final data = response.data as Map<String, dynamic>;
+      final message = data['message'] as String? ?? 'Password reset.';
+      return {'success': true, 'message': message};
+    } on DioException catch (e) {
+      if (e.response != null) {
+        final data = e.response!.data;
+        final detail = (data is Map)
+            ? (data['detail'] ?? 'Password reset failed')
+            : 'Password reset failed';
         return {'success': false, 'message': detail.toString()};
       }
       return {

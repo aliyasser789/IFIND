@@ -25,3 +25,13 @@ def verify_otp(email: str, code: str) -> bool:
 
 def delete_otp(email: str) -> None:
     _otp_store.pop(email, None)
+
+
+def has_valid_otp(key: str) -> bool:
+    """Return True if a non-expired OTP entry exists for the given key."""
+    entry = _otp_store.get(key)
+    if not entry:
+        return False
+    if datetime.utcnow() > entry["expires_at"]:
+        return False
+    return True

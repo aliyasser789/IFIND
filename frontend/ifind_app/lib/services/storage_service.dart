@@ -33,4 +33,41 @@ class StorageService {
   Future<void> deletePendingEmail() async {
     await _storage.delete(key: _pendingEmailKey);
   }
+
+  // ── ID verification status ─────────────────────────────────────────────────
+  // Saved after login; used by SplashScreen to redirect users who have a valid
+  // token but have not yet completed ID verification.
+
+  static const _idVerifiedKey = 'id_verified';
+
+  Future<bool> getIdVerified() async {
+    final value = await _storage.read(key: _idVerifiedKey);
+    return value == 'true';
+  }
+
+  Future<void> saveIdVerified(bool value) async {
+    await _storage.write(key: _idVerifiedKey, value: value ? 'true' : 'false');
+  }
+
+  Future<void> deleteIdVerified() async {
+    await _storage.delete(key: _idVerifiedKey);
+  }
+
+  // ── Logged-in user email ───────────────────────────────────────────────────
+  // Saved after login; used by SplashScreen to pass the email to
+  // IdVerificationScreen when id_verified=false on relaunch.
+
+  static const _userEmailKey = 'user_email';
+
+  Future<String?> getUserEmail() async {
+    return await _storage.read(key: _userEmailKey);
+  }
+
+  Future<void> saveUserEmail(String email) async {
+    await _storage.write(key: _userEmailKey, value: email);
+  }
+
+  Future<void> deleteUserEmail() async {
+    await _storage.delete(key: _userEmailKey);
+  }
 }

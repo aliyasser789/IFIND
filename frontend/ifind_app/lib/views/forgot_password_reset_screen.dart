@@ -4,75 +4,92 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import '../services/api_service.dart';
-import 'forgot_password_otp_screen.dart';
+import 'auth_screen.dart';
 
 // ── Design tokens ─────────────────────────────────────────────────────────────
 const _kPrimary      = Color(0xFF135BEC);
 const _kAccentPurple = Color(0xFF8B5CF6);
 const _kBackground   = Color(0xFF101622);
 const _kSlate900     = Color(0xFF0F172A);
+const _kSurface      = Color(0xFF151C2D);   // surface-container
 const _kSlate300     = Color(0xFFCBD5E1);
 const _kSlate400     = Color(0xFF94A3B8);
 const _kSlate500     = Color(0xFF64748B);
-const _kInputBg      = Color(0x661E293B);
-const _kInputBorder  = Color(0x1AFFFFFF);
+const _kOutline      = Color(0xFF334155);
 
 const double _sp8  = 8;
 const double _sp16 = 16;
-const double _sp24 = 24;
+
 const double _sp32 = 32;
 const double _sp48 = 48;
 
 // ─────────────────────────────────────────────────────────────────────────────
-// ForgotPasswordScreen — Step 1 of 3
+// ForgotPasswordResetScreen — Step 3 of 3
 // ─────────────────────────────────────────────────────────────────────────────
-class ForgotPasswordScreen extends StatefulWidget {
-  const ForgotPasswordScreen({super.key});
+class ForgotPasswordResetScreen extends StatefulWidget {
+  const ForgotPasswordResetScreen({super.key, required this.email});
+
+  final String email;
 
   @override
-  State<ForgotPasswordScreen> createState() => _ForgotPasswordScreenState();
+  State<ForgotPasswordResetScreen> createState() =>
+      _ForgotPasswordResetScreenState();
 }
 
-class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
-  final _emailController = TextEditingController();
-  bool _isLoading = false;
+class _ForgotPasswordResetScreenState
+    extends State<ForgotPasswordResetScreen> {
+  final _newPasswordController     = TextEditingController();
+  final _confirmPasswordController = TextEditingController();
+  bool _obscureNew     = true;
+  bool _obscureConfirm = true;
+  bool _isLoading      = false;
 
   @override
   void dispose() {
-    _emailController.dispose();
+    _newPasswordController.dispose();
+    _confirmPasswordController.dispose();
     super.dispose();
   }
 
-  Future<void> _onSendCode() async {
-    final email = _emailController.text.trim();
-    if (email.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Please enter your email address'),
-          backgroundColor: Colors.red,
-        ),
-      );
+  Future<void> _onReset() async {
+    final newPw  = _newPasswordController.text;
+    final confPw = _confirmPasswordController.text;
+
+    if (newPw.isEmpty || confPw.isEmpty) {
+      _showSnack('Please fill in both password fields', Colors.red);
       return;
     }
+    if (newPw.length < 8) {
+      _showSnack('Password must be at least 8 characters', Colors.red);
+      return;
+    }
+    if (newPw != confPw) {
+      _showSnack('Passwords do not match', Colors.red);
+      return;
+    }
+
     setState(() => _isLoading = true);
-    final result = await ApiService().forgotPassword(email);
+    final result = await ApiService().resetPassword(widget.email, newPw, confPw);
     if (!mounted) return;
     setState(() => _isLoading = false);
     if (result['success'] == true) {
-      Navigator.push(
+      Navigator.pushAndRemoveUntil(
         context,
-        MaterialPageRoute(
-          builder: (_) => ForgotPasswordOtpScreen(email: email),
-        ),
+        MaterialPageRoute(builder: (_) => const AuthScreen()),
+        (_) => false,
       );
     } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(result['message'] as String? ?? 'Failed to send code'),
-          backgroundColor: Colors.red,
-        ),
-      );
+      _showSnack(result['message'] as String? ?? 'Password reset failed', Colors.red);
     }
+  }
+
+  void _showSnack(String message, Color color) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message, style: GoogleFonts.manrope()),
+        backgroundColor: color,
+      ),
+    );
   }
 
   @override
@@ -110,18 +127,18 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
         fit: StackFit.expand,
         children: [
           // ── Background ──────────────────────────────────────────────────
-          const _FpBackdrop(),
+          const _RpBackdrop(),
 
           // ── Ambient blobs ────────────────────────────────────────────────
-          const _FpBlob(
+          const _RpBlob(
             top: -80, left: -80,
-            diameter: 256, color: _kPrimary,
-            opacity: 0.10, blurSigma: 50,
+            diameter: 300, color: _kPrimary,
+            opacity: 0.15, blurSigma: 40,
           ),
-          const _FpBlob(
-            bottom: -80, right: -80,
-            diameter: 256, color: _kAccentPurple,
-            opacity: 0.10, blurSigma: 50,
+          const _RpBlob(
+            bottom: 0, right: -80,
+            diameter: 300, color: _kAccentPurple,
+            opacity: 0.10, blurSigma: 40,
           ),
 
           // ── Content ──────────────────────────────────────────────────────
@@ -140,36 +157,50 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                       // Logo
                       const Padding(
                         padding: EdgeInsets.only(top: _sp48, bottom: _sp32),
-                        child: _FpLogoSection(),
+                        child: _RpLogoSection(),
                       ),
 
                       // Title + subtitle
                       const Padding(
                         padding: EdgeInsets.fromLTRB(
-                            _sp32, 0, _sp32, _sp32 + _sp8),
-                        child: _FpTitleSection(),
+                            _sp32, 0, _sp32, _sp32),
+                        child: _RpTitleSection(),
                       ),
 
-                      // Form
+                      // Form fields
                       Padding(
                         padding: const EdgeInsets.symmetric(
                             horizontal: _sp32),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.stretch,
                           children: [
-                            Text(
-                              'Email Address',
-                              style: GoogleFonts.manrope(
-                                color:      _kSlate300,
-                                fontSize:   13,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
+                            // New Password
+                            _inputLabel('New Password'),
                             const SizedBox(height: _sp8),
-                            _FpEmailInput(controller: _emailController),
-                            const SizedBox(height: _sp24),
-                            _SendCodeButton(
-                              onTap:     _isLoading ? () {} : _onSendCode,
+                            _RpPasswordInput(
+                              controller:  _newPasswordController,
+                              hint:        '••••••',
+                              obscureText: _obscureNew,
+                              onToggle: () =>
+                                  setState(() => _obscureNew = !_obscureNew),
+                            ),
+                            const SizedBox(height: _sp16),
+
+                            // Confirm Password
+                            _inputLabel('Confirm Password'),
+                            const SizedBox(height: _sp8),
+                            _RpPasswordInput(
+                              controller:  _confirmPasswordController,
+                              hint:        '••••••••',
+                              obscureText: _obscureConfirm,
+                              onToggle: () => setState(
+                                  () => _obscureConfirm = !_obscureConfirm),
+                            ),
+                            const SizedBox(height: _sp32),
+
+                            // Reset button
+                            _ResetButton(
+                              onTap:     _isLoading ? () {} : _onReset,
                               isLoading: _isLoading,
                             ),
                           ],
@@ -187,18 +218,30 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
       ),
     );
   }
+
+  Widget _inputLabel(String label) => Padding(
+        padding: const EdgeInsets.only(left: 4),
+        child: Text(
+          label,
+          style: GoogleFonts.manrope(
+            color:      _kSlate300,
+            fontSize:   13,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+      );
 }
 
 // ─── Logo Section ─────────────────────────────────────────────────────────────
-class _FpLogoSection extends StatelessWidget {
-  const _FpLogoSection();
+class _RpLogoSection extends StatelessWidget {
+  const _RpLogoSection();
 
   @override
   Widget build(BuildContext context) {
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        const _FpLogoCard(),
+        const _RpLogoCard(),
         const SizedBox(height: _sp16),
         RichText(
           text: TextSpan(
@@ -231,8 +274,8 @@ class _FpLogoSection extends StatelessWidget {
 }
 
 // ─── Logo Card ────────────────────────────────────────────────────────────────
-class _FpLogoCard extends StatelessWidget {
-  const _FpLogoCard();
+class _RpLogoCard extends StatelessWidget {
+  const _RpLogoCard();
 
   static const double _size   = 88.0;
   static const double _radius = 22.0;
@@ -243,7 +286,6 @@ class _FpLogoCard extends StatelessWidget {
     return Stack(
       alignment: Alignment.center,
       children: [
-        // Outer glow
         ImageFiltered(
           imageFilter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
           child: Container(
@@ -261,7 +303,6 @@ class _FpLogoCard extends StatelessWidget {
             ),
           ),
         ),
-        // Card body
         Container(
           width: _size, height: _size,
           decoration: BoxDecoration(
@@ -282,7 +323,6 @@ class _FpLogoCard extends StatelessWidget {
             child: Stack(
               alignment: Alignment.center,
               children: [
-                // Internal gradient
                 Positioned.fill(
                   child: DecoratedBox(
                     decoration: BoxDecoration(
@@ -299,7 +339,6 @@ class _FpLogoCard extends StatelessWidget {
                     ),
                   ),
                 ),
-                // Blurred ring
                 ImageFiltered(
                   imageFilter: ImageFilter.blur(sigmaX: 3, sigmaY: 3),
                   child: Icon(
@@ -308,7 +347,6 @@ class _FpLogoCard extends StatelessWidget {
                     color: _kPrimary.withValues(alpha: 0.40),
                   ),
                 ),
-                // Location pin
                 ShaderMask(
                   blendMode: BlendMode.srcATop,
                   shaderCallback: (b) => const RadialGradient(
@@ -338,18 +376,18 @@ class _FpLogoCard extends StatelessWidget {
 }
 
 // ─── Title Section ────────────────────────────────────────────────────────────
-class _FpTitleSection extends StatelessWidget {
-  const _FpTitleSection();
+class _RpTitleSection extends StatelessWidget {
+  const _RpTitleSection();
 
   @override
   Widget build(BuildContext context) {
     return Column(
       children: [
         Text(
-          'Forgot Password',
+          'Reset Password',
           style: GoogleFonts.manrope(
             color:      Colors.white,
-            fontSize:   34,
+            fontSize:   30,
             fontWeight: FontWeight.w700,
             height:     1.2,
           ),
@@ -357,12 +395,12 @@ class _FpTitleSection extends StatelessWidget {
         ),
         const SizedBox(height: _sp8),
         Text(
-          'Enter your email to receive a\nverification code',
+          'Enter your new password',
           style: GoogleFonts.manrope(
             color:      _kSlate400,
             fontSize:   15,
-            fontWeight: FontWeight.w400,
-            height:     1.6,
+            fontWeight: FontWeight.w500,
+            height:     1.5,
           ),
           textAlign: TextAlign.center,
         ),
@@ -371,43 +409,85 @@ class _FpTitleSection extends StatelessWidget {
   }
 }
 
-// ─── Email Input ──────────────────────────────────────────────────────────────
-class _FpEmailInput extends StatelessWidget {
-  const _FpEmailInput({required this.controller});
+// ─── Password Input ───────────────────────────────────────────────────────────
+class _RpPasswordInput extends StatelessWidget {
+  const _RpPasswordInput({
+    required this.controller,
+    required this.hint,
+    required this.obscureText,
+    required this.onToggle,
+  });
+
   final TextEditingController controller;
+  final String                 hint;
+  final bool                   obscureText;
+  final VoidCallback           onToggle;
 
   @override
   Widget build(BuildContext context) {
     return Container(
       height: 56,
       decoration: BoxDecoration(
-        color:        _kInputBg,
+        color: _kSurface,
         borderRadius: BorderRadius.circular(12),
-        border:       Border.all(color: _kInputBorder, width: 1),
+        border: Border.all(
+          color: _kOutline.withValues(alpha: 0.20),
+          width: 1,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color:      Colors.black.withValues(alpha: 0.15),
+            blurRadius: 4,
+            offset:     const Offset(0, 2),
+          ),
+        ],
       ),
       padding: const EdgeInsets.symmetric(horizontal: _sp16),
-      child: TextField(
-        controller:   controller,
-        keyboardType: TextInputType.emailAddress,
-        style: GoogleFonts.manrope(color: Colors.white, fontSize: 15),
-        decoration: InputDecoration(
-          hintText:       'yourname@email.com',
-          hintStyle:      GoogleFonts.manrope(
-              color: _kSlate500, fontSize: 15),
-          border:         InputBorder.none,
-          enabledBorder:  InputBorder.none,
-          focusedBorder:  InputBorder.none,
-          contentPadding: const EdgeInsets.symmetric(vertical: 16),
-        ),
-        cursorColor: _kPrimary,
+      child: Row(
+        children: [
+          Expanded(
+            child: TextField(
+              controller:  controller,
+              obscureText: obscureText,
+              style: GoogleFonts.manrope(color: Colors.white, fontSize: 15),
+              decoration: InputDecoration(
+                hintText:       hint,
+                hintStyle:      GoogleFonts.manrope(
+                  color:    _kSlate500.withValues(alpha: 0.50),
+                  fontSize: 15,
+                ),
+                border:         InputBorder.none,
+                enabledBorder:  InputBorder.none,
+                focusedBorder:  InputBorder.none,
+                isDense:        true,
+                contentPadding: EdgeInsets.zero,
+              ),
+              cursorColor: _kPrimary,
+            ),
+          ),
+          GestureDetector(
+            onTap:    onToggle,
+            behavior: HitTestBehavior.opaque,
+            child: Padding(
+              padding: const EdgeInsets.only(left: _sp8),
+              child: Icon(
+                obscureText
+                    ? Icons.visibility_outlined
+                    : Icons.visibility_off_outlined,
+                color: _kSlate500,
+                size:  20,
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
 }
 
-// ─── Send Code Button ─────────────────────────────────────────────────────────
-class _SendCodeButton extends StatelessWidget {
-  const _SendCodeButton({required this.onTap, this.isLoading = false});
+// ─── Reset Password Button ────────────────────────────────────────────────────
+class _ResetButton extends StatelessWidget {
+  const _ResetButton({required this.onTap, this.isLoading = false});
   final VoidCallback onTap;
   final bool         isLoading;
 
@@ -422,7 +502,7 @@ class _SendCodeButton extends StatelessWidget {
           color: _kPrimary,
           boxShadow: [
             BoxShadow(
-              color:        _kPrimary.withValues(alpha: 0.40),
+              color:        _kPrimary.withValues(alpha: 0.30),
               blurRadius:   16,
               spreadRadius: 0,
               offset:       const Offset(0, 4),
@@ -437,7 +517,7 @@ class _SendCodeButton extends StatelessWidget {
                     color: Colors.white, strokeWidth: 2.5),
                 )
               : Text(
-                  'Send Code',
+                  'Reset Password',
                   style: GoogleFonts.manrope(
                     color:      Colors.white,
                     fontSize:   17,
@@ -451,8 +531,8 @@ class _SendCodeButton extends StatelessWidget {
 }
 
 // ─── Background ───────────────────────────────────────────────────────────────
-class _FpBackdrop extends StatelessWidget {
-  const _FpBackdrop();
+class _RpBackdrop extends StatelessWidget {
+  const _RpBackdrop();
 
   @override
   Widget build(BuildContext context) {
@@ -475,8 +555,8 @@ class _FpBackdrop extends StatelessWidget {
 }
 
 // ─── Ambient Blob ─────────────────────────────────────────────────────────────
-class _FpBlob extends StatelessWidget {
-  const _FpBlob({
+class _RpBlob extends StatelessWidget {
+  const _RpBlob({
     this.top, this.right, this.bottom, this.left,
     required this.diameter,
     required this.color,

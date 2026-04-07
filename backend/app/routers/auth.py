@@ -9,7 +9,10 @@ from app.services.auth_service import (
     create_access_token,
     get_current_user,
     register_user,
+    reset_password,
+    send_reset_code,
     send_verification_code,
+    verify_reset_code,
 )
 from app.services.id_verify_service import verify_id_card
 
@@ -112,10 +115,59 @@ def login(body: LoginRequest, db: Session = Depends(get_db)):
     user = db.query(User).filter(User.email == body.email).first()
     if not user or not verify_password(body.password, user.password_hash):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid email or password")
-    if not user.email_verified or not user.id_verified:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Please complete your registration first")
+    if not user.email_verified:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Please verify your email first")
     token = create_access_token(user_id=str(user.id))
-    return {"access_token": token, "token_type": "bearer"}
+    return {"access_token": token, "token_type": "bearer", "id_verified": bool(user.id_verified)}
+
+
+class ForgotPasswordRequest(BaseModel):
+    email: str
+
+
+class VerifyResetOtpRequest(BaseModel):
+    email: str
+    otp_code: str
+
+
+class ResetPasswordRequest(BaseModel):
+    email: str
+    new_password: str
+    confirm_password: str
+
+
+@router.post("/forgot-password", status_code=status.HTTP_200_OK)
+def forgot_password(body: ForgotPasswordRequest, db: Session = Depends(get_db)):
+    try:
+        result = send_reset_code(db=db, email=body.email)
+        return result
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
+
+
+@router.post("/verify-reset-otp", status_code=status.HTTP_200_OK)
+def verify_reset_otp(body: VerifyResetOtpRequest, db: Session = Depends(get_db)):
+    try:
+        result = verify_reset_code(email=body.email, otp_code=body.otp_code)
+        return result
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+
+
+@router.post("/reset-password", status_code=status.HTTP_200_OK)
+def reset_password_endpoint(body: ResetPasswordRequest, db: Session = Depends(get_db)):
+    try:
+        result = reset_password(
+            db=db,
+            email=body.email,
+            new_password=body.new_password,
+            confirm_password=body.confirm_password,
+        )
+        return result
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 
 
 @router.post("/upload-id-back", status_code=status.HTTP_200_OK)

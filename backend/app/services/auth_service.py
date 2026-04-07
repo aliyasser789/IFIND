@@ -1,11 +1,21 @@
+import os
 import random
+from datetime import datetime, timedelta
 
 import bcrypt
-from fastapi import HTTPException, status
+from fastapi import Depends, HTTPException, status
+from fastapi.security import OAuth2PasswordBearer
+from jose import JWTError, jwt
 from sqlalchemy.orm import Session
 
+from app.DB_handeling.engine import get_db
 from app.models.user import User
 from app.services import email_service, otp_service
+
+SECRET_KEY = os.getenv("SECRET_KEY", "dev-secret-key-change-in-production")
+ALGORITHM = "HS256"
+
+_oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login")
 
 
 def hash_password(password: str) -> str:
@@ -78,3 +88,35 @@ def confirm_verification_code(db: Session, email: str, code: str) -> dict:
     otp_service.delete_otp(email)
 
     return {"message": "Email verified successfully"}
+
+
+def create_access_token(user_id: str, expires_delta: timedelta = timedelta(hours=24)) -> str:
+    payload = {
+        "sub": user_id,
+        "exp": datetime.utcnow() + expires_delta,
+    }
+    return jwt.encode(payload, SECRET_KEY, algorithm=ALGORITHM)
+
+
+def get_current_user(
+    token: str = Depends(_oauth2_scheme),
+    db: Session = Depends(get_db),
+) -> User:
+    """FastAPI dependency — decodes JWT and returns the authenticated User row."""
+    credentials_exception = HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Invalid or expired token",
+        headers={"WWW-Authenticate": "Bearer"},
+    )
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        user_id: str = payload.get("sub")
+        if user_id is None:
+            raise credentials_exception
+    except JWTError:
+        raise credentials_exception
+
+    user = db.query(User).filter(User.id == user_id).first()
+    if user is None:
+        raise credentials_exception
+    return user

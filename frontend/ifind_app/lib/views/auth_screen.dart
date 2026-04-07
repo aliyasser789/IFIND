@@ -3,7 +3,10 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
+import '../services/api_service.dart';
+import '../services/storage_service.dart';
 import 'forgot_password_screen.dart';
+import 'home_screen.dart';
 import 'register_screen.dart';
 
 // ── Design tokens (shared palette from splash_screen.dart) ──────────────────
@@ -52,9 +55,45 @@ class _AuthScreenState extends State<AuthScreen> {
     super.dispose();
   }
 
-  void _onLoginTap() {
-    // ignore: avoid_print
-    print('login tapped');
+  bool _isLoading = false;
+
+  Future<void> _onLoginTap() async {
+    final email    = _emailController.text.trim();
+    final password = _passwordController.text;
+
+    if (email.isEmpty || password.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Please enter your email and password'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
+    setState(() => _isLoading = true);
+
+    final result = await ApiService().login(email: email, password: password);
+
+    if (!mounted) return;
+    setState(() => _isLoading = false);
+
+    if (result['success'] == true) {
+      await StorageService().saveToken(result['access_token'] as String);
+      if (!mounted) return;
+      Navigator.pushAndRemoveUntil(
+        context,
+        MaterialPageRoute(builder: (_) => const HomeScreen()),
+        (_) => false,
+      );
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(result['message'] as String? ?? 'Login failed'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
   }
 
   @override
@@ -167,7 +206,7 @@ class _AuthScreenState extends State<AuthScreen> {
                             const SizedBox(height: _sp32),
 
                             // Login button
-                            _LoginButton(onTap: _onLoginTap),
+                            _LoginButton(onTap: _isLoading ? () {} : _onLoginTap, isLoading: _isLoading),
                           ],
                         ),
                       ),
@@ -472,9 +511,10 @@ class _GlassInput extends StatelessWidget {
 
 // ─── Login Button ─────────────────────────────────────────────────────────────
 class _LoginButton extends StatelessWidget {
-  const _LoginButton({required this.onTap});
+  const _LoginButton({required this.onTap, this.isLoading = false});
 
   final VoidCallback onTap;
+  final bool isLoading;
 
   @override
   Widget build(BuildContext context) {
@@ -498,14 +538,21 @@ class _LoginButton extends StatelessWidget {
           ],
         ),
         child: Center(
-          child: Text(
-            'Login',
-            style: GoogleFonts.manrope(
-              color:      Colors.white,
-              fontSize:   17,
-              fontWeight: FontWeight.w700,
-            ),
-          ),
+          child: isLoading
+              ? const SizedBox(
+                  width: 22, height: 22,
+                  child: CircularProgressIndicator(
+                    color: Colors.white, strokeWidth: 2.5,
+                  ),
+                )
+              : Text(
+                  'Login',
+                  style: GoogleFonts.manrope(
+                    color:      Colors.white,
+                    fontSize:   17,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
         ),
       ),
     );

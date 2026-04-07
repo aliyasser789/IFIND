@@ -1,13 +1,17 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from app.DB_handeling.engine import get_db
+from app.models.user import User
 from app.services.auth_service import (
     confirm_verification_code,
+    create_access_token,
+    get_current_user,
     register_user,
     send_verification_code,
 )
+from app.services.id_verify_service import verify_id_card
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -60,5 +64,63 @@ def send_verification(body: SendVerificationRequest, db: Session = Depends(get_d
 
 @router.post("/verify-email", status_code=status.HTTP_200_OK)
 def verify_email(body: VerifyEmailRequest, db: Session = Depends(get_db)):
-    result = confirm_verification_code(db=db, email=body.email, code=body.code)
+    confirm_verification_code(db=db, email=body.email, code=body.code)
+    user = db.query(User).filter(User.email == body.email).first()
+    token = create_access_token(user_id=str(user.id))
+    return {"message": "Email verified successfully", "access_token": token, "token_type": "bearer"}
+
+
+@router.post("/verify-id", status_code=status.HTTP_200_OK)
+async def verify_id(
+    file: UploadFile = File(...),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """
+    Upload one ID card image (JPEG/PNG).
+    Requires a valid Bearer JWT token.
+    On success, marks the user as id_verified and saves their national ID number.
+    """
+    image_bytes = await file.read()
+    result = verify_id_card(image_bytes)
+
+    if result.get("verified"):
+        current_user.id_verified = True
+        current_user.national_id_num = result["national_id"]
+        current_user.id_image_front = file.filename
+        db.commit()
+
     return result
+
+
+class LoginRequest(BaseModel):
+    email: str
+    password: str
+
+
+@router.post("/login", status_code=status.HTTP_200_OK)
+def login(body: LoginRequest, db: Session = Depends(get_db)):
+    from app.services.auth_service import verify_password
+    user = db.query(User).filter(User.email == body.email).first()
+    if not user or not verify_password(body.password, user.password_hash):
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid email or password")
+    if not user.email_verified or not user.id_verified:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Please complete your registration first")
+    token = create_access_token(user_id=str(user.id))
+    return {"access_token": token, "token_type": "bearer"}
+
+
+@router.post("/upload-id-back", status_code=status.HTTP_200_OK)
+async def upload_id_back(
+    file: UploadFile = File(...),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """
+    Upload the back of an ID card image (JPEG/PNG).
+    Requires a valid Bearer JWT token.
+    Saves the filename to id_image_back for the authenticated user.
+    """
+    current_user.id_image_back = file.filename
+    db.commit()
+    return {"message": "ID back photo saved successfully"}

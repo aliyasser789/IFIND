@@ -44,9 +44,7 @@ class _ConnectionTestScreenState extends State<ConnectionTestScreen> {
 
     setState(() {
       _isLoading = false;
-      _resultMessage = success
-          ? 'Connected to Backend!'
-          : 'Connection Failed';
+      _resultMessage = success ? 'Connected to Backend!' : 'Connection Failed';
     });
   }
 

@@ -184,3 +184,16 @@ async def upload_id_back(
     current_user.id_image_back = file.filename
     db.commit()
     return {"message": "ID back photo saved successfully"}
+
+
+# ── /user routes ───────────────────────────────────────────────────────────────
+user_router = APIRouter(prefix="/user", tags=["user"])
+
+
+@user_router.get("/me", status_code=status.HTTP_200_OK)
+def get_me(current_user: User = Depends(get_current_user)):
+    """Return the authenticated user's username and full name."""
+    return {
+        "username": current_user.username,
+        "full_name": current_user.full_name,
+    }

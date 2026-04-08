@@ -12,7 +12,7 @@ from app.DB_handeling.engine import get_db
 from app.models.user import User
 from app.services import email_service, otp_service
 
-SECRET_KEY = os.getenv("SECRET_KEY", "dev-secret-key-change-in-production")
+SECRET_KEY = os.getenv("JWT_SECRET", "dev-secret-key-change-in-production")
 ALGORITHM = "HS256"
 
 _oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login")

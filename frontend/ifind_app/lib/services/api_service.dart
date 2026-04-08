@@ -1,11 +1,16 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:dio/dio.dart';
 import 'package:ifind_app/services/storage_service.dart';
 
-// 10.0.2.2 maps to the host machine's localhost when running on Android emulator.
-// For a physical device, replace with your machine's LAN IP (e.g. http://192.168.1.x:8000).
-const String baseUrl = "http://192.168.1.7:8000";
+// Base URL is injected at build time via --dart-define=BASE_URL=...
+// Default (no flag) = Android emulator → host machine localhost.
+// Use the VS Code launch configs in .vscode/launch.json to switch easily.
+const String baseUrl = String.fromEnvironment(
+  'BASE_URL',
+  defaultValue: 'http://10.0.2.2:8000',
+);
 
 class ApiService {
   final Dio _dio = Dio(BaseOptions(
@@ -185,9 +190,8 @@ class ApiService {
     } on DioException catch (e) {
       if (e.response != null) {
         final data = e.response!.data;
-        final detail = (data is Map)
-            ? (data['detail'] ?? 'Login failed')
-            : 'Login failed';
+        final detail =
+            (data is Map) ? (data['detail'] ?? 'Login failed') : 'Login failed';
         return {'success': false, 'message': detail.toString()};
       }
       return {
@@ -278,6 +282,25 @@ class ApiService {
         'success': false,
         'message': 'Cannot connect to server. Is the backend running?',
       };
+    }
+  }
+
+  /// GET /user/me
+  /// Returns the authenticated user's username, or null on failure.
+  Future<String?> getMe() async {
+    final token = await StorageService().getToken();
+    if (token == null) return null;
+    try {
+      final response = await _dio.get(
+        '/user/me',
+        options: Options(headers: {'Authorization': 'Bearer $token'}),
+      );
+      final raw = response.data;
+      final data =
+          (raw is String ? jsonDecode(raw) : raw) as Map<String, dynamic>;
+      return data['username'] as String?;
+    } catch (e) {
+      return null;
     }
   }
 

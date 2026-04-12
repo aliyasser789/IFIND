@@ -15,7 +15,7 @@ from typing import List
 from app.DB_handeling.engine import get_db
 from app.models.found_item import FoundItem
 from app.models.user import User
-from app.services.ai_service import analyze_photos
+from app.services.ai_service import analyze_photos, extract_features
 from app.services.auth_service import get_current_user
 
 router = APIRouter(prefix="/items", tags=["items"])
@@ -109,7 +109,7 @@ async def report_found_item_photo(
         user_id=current_user.id,
         photo_url=saved_paths,          # JSONB list of paths
         category=category,
-        features={"description": description},
+        features=extract_features(description, category),
         district=district,
     )
     db.add(item)

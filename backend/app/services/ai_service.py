@@ -1,21 +1,37 @@
 """
-AI Service — Photo Analysis + Voice Transcription
+AI Service — Photo Analysis + Voice Transcription + Feature Extraction
 Loads YOLOv8m once at module startup.
 Provides:
-  analyze_photo(image_bytes)  → {"category": str, "confidence": float}
-  transcribe_voice(audio_path) → str  (plain transcription text)
+  analyze_photo(image_bytes)              → {"category": str, "confidence": float}
+  transcribe_voice(audio_path)            → str  (plain transcription text)
+  extract_features(description, category) → dict of structured item features
 """
 
+import json
+import os
 from pathlib import Path
 
 import cv2
 import numpy as np
+from dotenv import load_dotenv
 from ultralytics import YOLO
 from faster_whisper import WhisperModel
+from google import genai
+
+# ── Load .env ─────────────────────────────────────────────────────────────────
+# ai_service.py lives in  backend/app/services/
+# parents[0] = services/, parents[1] = app/, parents[2] = backend/
+_ENV_PATH = Path(__file__).resolve().parents[2] / ".env"
+load_dotenv(dotenv_path=_ENV_PATH)
+
+# ── Gemini client — loaded once at module level ────────────────────────────────
+_GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
+_gemini_model = None
+if _GEMINI_API_KEY:
+    _gemini_model = genai.Client(api_key=_GEMINI_API_KEY)
 
 # ── Model path ────────────────────────────────────────────────────────────────
-# ai_service.py lives in  backend/app/services/
-# parents[1]            =  backend/app/
+# parents[1] = backend/app/
 _MODEL_PATH = Path(__file__).resolve().parents[1] / "ai_models" / "yolov8m.pt"
 
 if not _MODEL_PATH.exists():
@@ -113,3 +129,54 @@ def transcribe_voice(audio_path: str) -> str:
     """
     segments, _info = _whisper_model.transcribe(audio_path , language="en")
     return " ".join(segment.text.strip() for segment in segments).strip()
+
+
+def extract_features(description: str, category: str) -> dict:
+    """
+    Call Gemini to extract structured features from a found item description.
+
+    Args:
+        description: Free-text description of the found item.
+        category:    YOLO-detected item category (e.g. "backpack", "cell phone").
+
+    Returns:
+        Dict with keys: color, material, brand, size, distinguishing_feature, description.
+        Falls back to {"description": description} if input is empty or Gemini fails.
+    """
+    if not description or not description.strip():
+        return {"description": description}
+
+    if _gemini_model is None:
+        return {"description": description}
+
+    try:
+        prompt = (
+            "You are a lost-and-found assistant. Extract structured features from the "
+            "description of a found item below.\n\n"
+            f"Category: {category}\n"
+            f"Description: {description}\n\n"
+            "Return ONLY a valid JSON object with exactly these keys "
+            "(use null for any field not mentioned):\n"
+            '{"color": ..., "material": ..., "brand": ..., "size": ..., '
+            '"distinguishing_feature": ..., "description": ...}'
+        )
+
+        response = _gemini_model.models.generate_content(
+            model="gemini-2.5-flash", contents=prompt
+        )
+        raw = response.candidates[0].content.parts[0].text.strip()
+
+        # Strip markdown code fences (Gemini sometimes wraps output in ```json ... ```)
+        if "```" in raw:
+            raw = raw.split("```")[1]          # grab content after opening fence
+            if raw.startswith("json"):
+                raw = raw[4:]                  # drop the "json" language tag
+            raw = raw.strip()
+
+        data = json.loads(raw)
+        data["description"] = description      # always preserve the original text
+        return data
+
+    except Exception as e:
+        print(f"[Gemini extract_features ERROR] {type(e).__name__}: {e}")
+        return {"description": description}

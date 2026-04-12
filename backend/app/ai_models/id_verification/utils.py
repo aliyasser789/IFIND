@@ -1,19 +1,27 @@
-from ultralytics import YOLO
 import cv2
 import re
 import os
-import easyocr
 
 # Resolve model directory relative to this file so paths work regardless of cwd
 _MODELS_DIR = os.path.dirname(os.path.abspath(__file__))
 
-# Lazy-initialized EasyOCR reader so it doesn't block server startup
+# Lazy-initialized heavy dependencies so they don't block server startup
 _reader = None
+_YOLO = None
+_easyocr = None
+
+def _get_yolo():
+    global _YOLO
+    if _YOLO is None:
+        from ultralytics import YOLO as _YOLOClass
+        _YOLO = _YOLOClass
+    return _YOLO
 
 def _get_reader():
-    global _reader
+    global _reader, _easyocr
     if _reader is None:
-        _reader = easyocr.Reader(['ar'], gpu=False)
+        import easyocr as _easyocr_mod
+        _reader = _easyocr_mod.Reader(['ar'], gpu=False)
     return _reader
 
 # Function to preprocess the cropped image
@@ -32,7 +40,7 @@ def extract_text(image, bbox, lang='ara'):
 
 # Function to detect national ID numbers in a cropped image
 def detect_national_id(cropped_image):
-    model = YOLO(os.path.join(_MODELS_DIR, 'detect_id.pt'))
+    model = _get_yolo()(os.path.join(_MODELS_DIR, 'detect_id.pt'))
     results = model(cropped_image)
     detected_info = []
 
@@ -68,7 +76,7 @@ def expand_bbox_height(bbox, scale=1.2, image_shape=None):
 # Function to process the cropped image
 def process_image(cropped_image):
     # Load the trained YOLO model for objects (fields) detection
-    model = YOLO(os.path.join(_MODELS_DIR, 'detect_odjects.pt'))
+    model = _get_yolo()(os.path.join(_MODELS_DIR, 'detect_odjects.pt'))
     results = model(cropped_image)
 
     # Variables to store extracted values
@@ -176,7 +184,7 @@ def decode_egyptian_id(id_number):
 # Function to detect the ID card and pass it to the existing code
 def detect_and_process_id_card(image_path):
     # Load the ID card detection model
-    id_card_model = YOLO(os.path.join(_MODELS_DIR, 'detect_id_card.pt'))
+    id_card_model = _get_yolo()(os.path.join(_MODELS_DIR, 'detect_id_card.pt'))
 
     # Perform inference to detect the ID card
     id_card_results = id_card_model(image_path)

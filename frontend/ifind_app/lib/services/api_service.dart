@@ -285,6 +285,42 @@ class ApiService {
     }
   }
 
+  /// GET /items/districts
+  /// Returns a list of district strings, or empty list on failure.
+  Future<List<String>> getDistricts() async {
+    final token = await StorageService().getToken();
+    if (token == null) return [];
+    try {
+      final response = await _dio.get(
+        '/items/districts',
+        options: Options(headers: {'Authorization': 'Bearer $token'}),
+      );
+      final raw = response.data;
+      final data = (raw is String ? jsonDecode(raw) : raw) as List<dynamic>;
+      return data.map((e) => e.toString()).toList();
+    } catch (e) {
+      return [];
+    }
+  }
+
+  /// GET /items/categories
+  /// Returns a list of category strings, or empty list on failure.
+  Future<List<String>> getCategories() async {
+    final token = await StorageService().getToken();
+    if (token == null) return [];
+    try {
+      final response = await _dio.get(
+        '/items/categories',
+        options: Options(headers: {'Authorization': 'Bearer $token'}),
+      );
+      final raw = response.data;
+      final data = (raw is String ? jsonDecode(raw) : raw) as List<dynamic>;
+      return data.map((e) => e.toString()).toList();
+    } catch (e) {
+      return [];
+    }
+  }
+
   /// GET /user/me
   /// Returns the authenticated user's username, or null on failure.
   Future<String?> getMe() async {

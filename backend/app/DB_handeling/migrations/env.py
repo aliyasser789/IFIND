@@ -9,7 +9,7 @@ from alembic import context
 # access to the values within the .ini file in use.
 config = context.config
 
-# Interpret the config file for Python logging.
+# Interpreta the config file for Python logging.
 # This line sets up loggers basically.
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
@@ -18,14 +18,10 @@ if config.config_file_name is not None:
 # for 'autogenerate' support
 # from myapp import mymodel
 # target_metadata = mymodel.Base.metadata
-import sys
-import os
-sys.path.append(os.path.join(os.path.dirname(__file__), '../..'))
-
-from DB_handeling.base import Base
-from DB_handeling.config import DATABASE_URL
+from app.DB_handeling.base import Base
+from app.DB_handeling.config import DATABASE_URL
 from app.models.user import User  # noqa: F401 — registers User with Base.metadata
-
+from app.models.lost_item import LostItem  # noqa: F401 — registers LostItem with Base.metadata
 target_metadata = Base.metadata
 
 # other values from the config, defined by the needs of env.py,

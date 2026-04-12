@@ -18,6 +18,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.routers.auth import router as auth_router, user_router
+from app.routers.items import router as items_router
 
 app = FastAPI(title="IFind API")
 
@@ -33,6 +34,7 @@ Base.metadata.create_all(bind=engine)
 
 app.include_router(auth_router)
 app.include_router(user_router)
+app.include_router(items_router)
 
 @app.get("/ping")
 def ping():

@@ -321,6 +321,52 @@ class ApiService {
     }
   }
 
+  /// GET /items/recent
+  /// Returns a list of the most recently found items, or empty list on failure.
+  Future<List<Map<String, dynamic>>> getRecentItems() async {
+    final token = await StorageService().getToken();
+    if (token == null) return [];
+    try {
+      final response = await _dio.get(
+        '/items/recent',
+        options: Options(headers: {'Authorization': 'Bearer $token'}),
+      );
+      final raw = response.data;
+      final data = (raw is String ? jsonDecode(raw) : raw) as List<dynamic>;
+      return data.cast<Map<String, dynamic>>();
+    } catch (e) {
+      return [];
+    }
+  }
+
+  /// GET /items/search?keywords=X&district=Y&category=Z
+  /// All query params are optional. Returns matching items, or empty list on failure.
+  Future<List<Map<String, dynamic>>> searchItems({
+    String? keywords,
+    String? district,
+    String? category,
+  }) async {
+    final token = await StorageService().getToken();
+    if (token == null) return [];
+    try {
+      final queryParams = <String, String>{};
+      if (keywords != null) queryParams['keywords'] = keywords;
+      if (district != null) queryParams['district'] = district;
+      if (category != null) queryParams['category'] = category;
+
+      final response = await _dio.get(
+        '/items/search',
+        queryParameters: queryParams,
+        options: Options(headers: {'Authorization': 'Bearer $token'}),
+      );
+      final raw = response.data;
+      final data = (raw is String ? jsonDecode(raw) : raw) as List<dynamic>;
+      return data.cast<Map<String, dynamic>>();
+    } catch (e) {
+      return [];
+    }
+  }
+
   /// GET /user/me
   /// Returns the authenticated user's username, or null on failure.
   Future<String?> getMe() async {

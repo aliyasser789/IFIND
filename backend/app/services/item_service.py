@@ -37,11 +37,12 @@ def search_found_items(
     keyword = keywords.strip()
 
     sql_filters = """
-        description ILIKE :kw
-        OR category ILIKE :kw
+        category ILIKE :kw
         OR features->>'color' ILIKE :kw
-        OR features->>'type' ILIKE :kw
         OR features->>'brand' ILIKE :kw
+        OR features->>'material' ILIKE :kw
+        OR features->>'description' ILIKE :kw
+        OR features->>'distinguishing_feature' ILIKE :kw
     """
 
     extra_filters = ""

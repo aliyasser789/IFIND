@@ -18,7 +18,11 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.routers.auth import router as auth_router, user_router
+from app.routers.ai import router as ai_router
 from app.routers.items import router as items_router
+
+# Import models so SQLAlchemy registers them before create_all is called
+import app.models.found_item  # noqa: F401
 
 app = FastAPI(title="IFind API")
 
@@ -34,6 +38,7 @@ Base.metadata.create_all(bind=engine)
 
 app.include_router(auth_router)
 app.include_router(user_router)
+app.include_router(ai_router)
 app.include_router(items_router)
 
 @app.get("/ping")

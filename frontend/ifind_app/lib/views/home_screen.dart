@@ -12,6 +12,10 @@ import 'lost_screen.dart';
 import 'settings_screen.dart';
 
 // ── Design tokens (identical palette to auth_screen.dart / splash_screen.dart) ─
+const _kBaseUrl = String.fromEnvironment(
+  'BASE_URL',
+  defaultValue: 'http://10.0.2.2:8000',
+);
 const _kPrimary = Color(0xFF135BEC);
 const _kAccentPurple = Color(0xFF8B5CF6);
 const _kBackground = Color(0xFF101622);
@@ -19,6 +23,7 @@ const _kSlate900 = Color(0xFF0F172A);
 const _kSlate400 = Color(0xFF94A3B8);
 const _kSlate500 = Color(0xFF64748B);
 const _kSlate800 = Color(0xFF1E293B);
+const _kCardBg = Color(0xFF1E2A3A);
 
 // ─────────────────────────────────────────────────────────────────────────────
 // HomeScreen
@@ -33,6 +38,7 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   String _displayName = '';
   bool _loading = true;
+  List<Map<String, dynamic>> _recentItems = [];
 
   @override
   void initState() {
@@ -57,8 +63,12 @@ class _HomeScreenState extends State<HomeScreen> {
 
     final name = username.isNotEmpty ? username : 'User';
 
+    final items = await ApiService().getRecentItems();
+    if (!mounted) return;
+
     setState(() {
       _displayName = name;
+      _recentItems = items.take(5).toList();
       _loading = false;
     });
   }
@@ -151,7 +161,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       const SizedBox(height: 32),
 
                       // Recent near you
-                      const _RecentSection(),
+                      _RecentSection(items: _recentItems),
                     ],
                   ),
                 ),
@@ -517,7 +527,9 @@ class _ActionCard extends StatelessWidget {
 
 // ─── Recent Near You Section ──────────────────────────────────────────────────
 class _RecentSection extends StatelessWidget {
-  const _RecentSection();
+  const _RecentSection({required this.items});
+
+  final List<Map<String, dynamic>> items;
 
   @override
   Widget build(BuildContext context) {
@@ -536,94 +548,512 @@ class _RecentSection extends StatelessWidget {
                 fontWeight: FontWeight.w700,
               ),
             ),
-            Text(
-              'SEE ALL',
-              style: GoogleFonts.manrope(
-                color: _kPrimary,
-                fontSize: 11,
-                fontWeight: FontWeight.w700,
-                letterSpacing: 1.5,
+            GestureDetector(
+              onTap: () => Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const LostScreen()),
+              ),
+              behavior: HitTestBehavior.opaque,
+              child: Text(
+                'SEE ALL',
+                style: GoogleFonts.manrope(
+                  color: _kPrimary,
+                  fontSize: 11,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: 1.5,
+                ),
               ),
             ),
           ],
         ),
         const SizedBox(height: 16),
 
-        // Horizontal scroll of placeholder cards
-        const SingleChildScrollView(
-          scrollDirection: Axis.horizontal,
-          child: Row(
-            children: [
-              _RecentCard(name: 'Bose Headphones', timeLabel: 'Found 2h ago'),
-              SizedBox(width: 16),
-              _RecentCard(name: 'Leather Wallet', timeLabel: 'Lost 5h ago'),
-            ],
-          ),
-        ),
+        if (items.isEmpty)
+          Center(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 32),
+              child: Text(
+                'No recent items yet',
+                style: GoogleFonts.manrope(
+                  color: _kSlate400,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ),
+          )
+        else
+          ...items.map((item) => _HomeItemCard(item: item)),
       ],
     );
   }
 }
 
-// ─── Recent Card ─────────────────────────────────────────────────────────────
-class _RecentCard extends StatelessWidget {
-  const _RecentCard({
-    required this.name,
-    required this.timeLabel,
-  });
+// ─── Home Item Card ───────────────────────────────────────────────────────────
+class _HomeItemCard extends StatelessWidget {
+  const _HomeItemCard({required this.item});
 
-  final String name;
-  final String timeLabel;
+  final Map<String, dynamic> item;
+
+  String _buildPhotoUrl() {
+    try {
+      final photoList = item['photo_url'] as List<dynamic>;
+      if (photoList.isEmpty) return '';
+      final path = photoList[0] as String;
+      final filename = path.split('/').last;
+      final itemId = item['id'];
+      return '$_kBaseUrl/items/photos/$itemId/$filename';
+    } catch (_) {
+      return '';
+    }
+  }
+
+  String _formatDate() {
+    final dateStr = item['created_at'] as String?;
+    if (dateStr == null) return 'Unknown date';
+    try {
+      final date = DateTime.parse(dateStr).toLocal();
+      final now = DateTime.now();
+      final today = DateTime(now.year, now.month, now.day);
+      final itemDay = DateTime(date.year, date.month, date.day);
+      final diff = today.difference(itemDay).inDays;
+      if (diff == 0) return 'Found Today';
+      if (diff == 1) return 'Found Yesterday';
+      if (diff < 7) return 'Found $diff days ago';
+      return 'Found ${date.day}/${date.month}/${date.year}';
+    } catch (_) {
+      return 'Unknown date';
+    }
+  }
+
+  void _showModal(BuildContext context) {
+    final photoUrl = _buildPhotoUrl();
+    final category = item['category'] as String? ?? 'Unknown';
+    final features = item['features'];
+    final district = item['district'] as String? ?? 'Unknown';
+    final dateLabel = _formatDate();
+
+    final featureEntries = <MapEntry<String, String>>[];
+    if (features is Map) {
+      final fields = <String, dynamic>{
+        'Color': features['color'],
+        'Brand': features['brand'],
+        'Material': features['material'],
+        'Size': features['size'],
+        'Distinguishing Feature': features['distinguishing_feature'],
+        'Description': features['description'],
+      };
+      for (final e in fields.entries) {
+        final v = e.value;
+        if (v != null && v.toString().trim().isNotEmpty) {
+          featureEntries.add(MapEntry(e.key, v.toString()));
+        }
+      }
+    }
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      barrierColor: Colors.black.withValues(alpha: 0.6),
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => DraggableScrollableSheet(
+        initialChildSize: 0.85,
+        maxChildSize: 0.95,
+        minChildSize: 0.5,
+        expand: false,
+        builder: (_, scrollCtrl) => Container(
+          decoration: const BoxDecoration(
+            color: _kCardBg,
+            borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+          ),
+          child: Column(
+            children: [
+              // ── Drag handle ────────────────────────────────────────
+              Padding(
+                padding: const EdgeInsets.only(top: 12, bottom: 8),
+                child: Container(
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.2),
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+              // ── Scrollable content ─────────────────────────────────
+              Expanded(
+                child: SingleChildScrollView(
+                  controller: scrollCtrl,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Photo with category badge
+                      Stack(
+                        children: [
+                          photoUrl.isNotEmpty
+                              ? Image.network(
+                                  photoUrl,
+                                  width: double.infinity,
+                                  height: 240,
+                                  fit: BoxFit.cover,
+                                  loadingBuilder: (c, child, prog) {
+                                    if (prog == null) return child;
+                                    return Container(
+                                      width: double.infinity,
+                                      height: 240,
+                                      color: _kSlate900,
+                                      child: const Center(
+                                        child: CircularProgressIndicator(
+                                            color: _kPrimary, strokeWidth: 2),
+                                      ),
+                                    );
+                                  },
+                                  errorBuilder: (c, e, s) => Container(
+                                    width: double.infinity,
+                                    height: 240,
+                                    color: _kSlate900,
+                                    child: const Icon(
+                                        Icons.image_not_supported_outlined,
+                                        color: _kSlate500,
+                                        size: 48),
+                                  ),
+                                )
+                              : Container(
+                                  width: double.infinity,
+                                  height: 240,
+                                  color: _kSlate900,
+                                  child: const Icon(
+                                      Icons.image_not_supported_outlined,
+                                      color: _kSlate500,
+                                      size: 48),
+                                ),
+                          Positioned(
+                            top: 12,
+                            left: 12,
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 10, vertical: 4),
+                              decoration: BoxDecoration(
+                                color: _kAccentPurple,
+                                borderRadius: BorderRadius.circular(100),
+                              ),
+                              child: Text(
+                                category,
+                                style: GoogleFonts.manrope(
+                                  color: Colors.white,
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      // Details section
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(20, 20, 20, 24),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Item Details',
+                              style: GoogleFonts.manrope(
+                                color: Colors.white,
+                                fontSize: 18,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                            if (featureEntries.isNotEmpty) ...[
+                              const SizedBox(height: 16),
+                              ...featureEntries.asMap().entries.map((e) {
+                                return Column(
+                                  children: [
+                                    Row(
+                                      mainAxisAlignment:
+                                          MainAxisAlignment.spaceBetween,
+                                      children: [
+                                        Text(
+                                          e.value.key,
+                                          style: GoogleFonts.manrope(
+                                            color: _kSlate400,
+                                            fontSize: 14,
+                                            fontWeight: FontWeight.w500,
+                                          ),
+                                        ),
+                                        const SizedBox(width: 16),
+                                        Flexible(
+                                          child: Text(
+                                            e.value.value,
+                                            style: GoogleFonts.manrope(
+                                              color: Colors.white,
+                                              fontSize: 14,
+                                              fontWeight: FontWeight.w500,
+                                            ),
+                                            textAlign: TextAlign.right,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                    if (e.key < featureEntries.length - 1)
+                                      Divider(
+                                          height: 20,
+                                          color: Colors.white
+                                              .withValues(alpha: 0.08)),
+                                  ],
+                                );
+                              }),
+                            ],
+                            const SizedBox(height: 16),
+                            Row(
+                              children: [
+                                const Icon(Icons.location_pin,
+                                    color: _kSlate400, size: 16),
+                                const SizedBox(width: 6),
+                                Text(
+                                  district,
+                                  style: GoogleFonts.manrope(
+                                      color: _kSlate400, fontSize: 14),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              dateLabel,
+                              style: GoogleFonts.manrope(
+                                color: _kPrimary,
+                                fontSize: 13,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                            const SizedBox(height: 24),
+                            SizedBox(
+                              width: double.infinity,
+                              height: 56,
+                              child: ElevatedButton(
+                                onPressed: () {
+                                  Navigator.pop(ctx);
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(
+                                        content: Text(
+                                            'Chat feature coming soon!')),
+                                  );
+                                },
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: _kPrimary,
+                                  foregroundColor: Colors.white,
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(14),
+                                  ),
+                                  elevation: 0,
+                                ),
+                                child: Text(
+                                  'This is mine!',
+                                  style: GoogleFonts.manrope(
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.w700,
+                                    fontSize: 16,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
+    final photoUrl = _buildPhotoUrl();
+    final category = item['category'] as String? ?? 'Unknown';
+    final features = item['features'];
+    final description = (features is Map)
+        ? (features['description'] as String? ?? 'No description')
+        : 'No description';
+    final district = item['district'] as String? ?? 'Unknown';
+    final dateLabel = _formatDate();
+
     return Container(
-      width: 160,
+      margin: const EdgeInsets.only(bottom: 16),
       decoration: BoxDecoration(
-        color: _kSlate800.withValues(alpha: 0.20),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: Colors.white.withValues(alpha: 0.05),
-          width: 1,
-        ),
+        color: _kCardBg,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.20),
+            blurRadius: 20,
+            offset: const Offset(0, 4),
+          ),
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Empty image placeholder (no Image.network — rule #2)
-          Container(
-            height: 96,
-            decoration: const BoxDecoration(
-              color: _kSlate800,
-              borderRadius: BorderRadius.vertical(top: Radius.circular(12)),
-            ),
-          ),
-
-          // Text
-          Padding(
-            padding: const EdgeInsets.all(12),
+          // ── Tappable area: photo + description + district + date ───────
+          GestureDetector(
+            onTap: () => _showModal(context),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  name,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: GoogleFonts.manrope(
-                    color: Colors.white,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w700,
-                  ),
+                // Photo with category badge
+                Stack(
+                  children: [
+                    ClipRRect(
+                      borderRadius:
+                          const BorderRadius.vertical(top: Radius.circular(20)),
+                      child: photoUrl.isNotEmpty
+                          ? Image.network(
+                              photoUrl,
+                              width: double.infinity,
+                              height: 180,
+                              fit: BoxFit.cover,
+                              loadingBuilder: (ctx, child, progress) {
+                                if (progress == null) return child;
+                                return Container(
+                                  width: double.infinity,
+                                  height: 180,
+                                  color: _kSlate900,
+                                  child: const Center(
+                                    child: CircularProgressIndicator(
+                                      color: _kPrimary,
+                                      strokeWidth: 2,
+                                    ),
+                                  ),
+                                );
+                              },
+                              errorBuilder: (ctx, error, stack) => Container(
+                                width: double.infinity,
+                                height: 180,
+                                color: _kSlate900,
+                                child: const Icon(
+                                  Icons.image_not_supported_outlined,
+                                  color: _kSlate500,
+                                  size: 40,
+                                ),
+                              ),
+                            )
+                          : Container(
+                              width: double.infinity,
+                              height: 180,
+                              color: _kSlate900,
+                              child: const Icon(
+                                Icons.image_not_supported_outlined,
+                                color: _kSlate500,
+                                size: 40,
+                              ),
+                            ),
+                    ),
+                    // Category badge — top-left overlay
+                    Positioned(
+                      top: 12,
+                      left: 12,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 10, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: _kAccentPurple,
+                          borderRadius: BorderRadius.circular(100),
+                        ),
+                        child: Text(
+                          category,
+                          style: GoogleFonts.manrope(
+                            color: Colors.white,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
-                const SizedBox(height: 4),
-                Text(
-                  timeLabel,
-                  style: GoogleFonts.manrope(
-                    color: _kSlate500,
-                    fontSize: 10,
+
+                // Description, district, date
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        description,
+                        style: GoogleFonts.manrope(
+                          color: Colors.white,
+                          fontSize: 15,
+                          fontWeight: FontWeight.w700,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      const SizedBox(height: 8),
+                      Row(
+                        children: [
+                          const Icon(Icons.location_pin,
+                              color: _kSlate400, size: 14),
+                          const SizedBox(width: 4),
+                          Text(
+                            district,
+                            style: GoogleFonts.manrope(
+                              color: _kSlate400,
+                              fontSize: 13,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        dateLabel,
+                        style: GoogleFonts.manrope(
+                          color: _kPrimary,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                    ],
                   ),
                 ),
               ],
+            ),
+          ),
+
+          // ── "This is mine!" button — outside GestureDetector ──────────
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+            child: SizedBox(
+              width: double.infinity,
+              height: 48,
+              child: ElevatedButton(
+                onPressed: () {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                        content: Text('Chat feature coming soon!')),
+                  );
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: _kPrimary,
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  elevation: 0,
+                ),
+                child: Text(
+                  'This is mine!',
+                  style: GoogleFonts.manrope(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w700,
+                    fontSize: 15,
+                  ),
+                ),
+              ),
             ),
           ),
         ],

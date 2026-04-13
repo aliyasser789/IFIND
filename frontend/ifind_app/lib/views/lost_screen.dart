@@ -9,6 +9,10 @@ import 'home_screen.dart';
 import 'settings_screen.dart';
 
 // ── Design tokens ────────────────────────────────────────────────────────────
+const _kBaseUrl = String.fromEnvironment(
+  'BASE_URL',
+  defaultValue: 'http://10.0.2.2:8000',
+);
 const _kPrimary = Color(0xFF135BEC);
 const _kAccentPurple = Color(0xFF8B5CF6);
 const _kBackground = Color(0xFF101622);
@@ -35,6 +39,11 @@ class _LostScreenState extends State<LostScreen> {
   List<String> _categories = [];
   bool _isLoading = true;
 
+  List<Map<String, dynamic>> _recentItems = [];
+  List<Map<String, dynamic>> _searchResults = [];
+  bool _isSearching = false;
+  bool _hasSearched = false;
+
   @override
   void initState() {
     super.initState();
@@ -49,6 +58,44 @@ class _LostScreenState extends State<LostScreen> {
         _districts = results[0];
         _categories = results[1];
         _isLoading = false;
+      });
+    }
+    _loadRecentItems();
+  }
+
+  Future<void> _loadRecentItems() async {
+    final api = ApiService();
+    final items = await api.getRecentItems();
+    if (mounted) {
+      setState(() {
+        _recentItems = items;
+      });
+    }
+  }
+
+  Future<void> _searchItems() async {
+    final query = _searchController.text.trim();
+    if (query.isEmpty && _selectedDistrict == null && _selectedCategory == null) {
+      if (mounted) {
+        setState(() {
+          _hasSearched = false;
+          _searchResults = [];
+        });
+      }
+      return;
+    }
+    if (mounted) setState(() => _isSearching = true);
+    final api = ApiService();
+    final results = await api.searchItems(
+      keywords: query.isEmpty ? ' ' : query,
+      district: _selectedDistrict,
+      category: _selectedCategory,
+    );
+    if (mounted) {
+      setState(() {
+        _searchResults = results;
+        _hasSearched = true;
+        _isSearching = false;
       });
     }
   }
@@ -142,7 +189,7 @@ class _LostScreenState extends State<LostScreen> {
       ),
       child: TextField(
         controller: _searchController,
-        onChanged: (value) => setState(() {}),
+        onChanged: (value) => _searchItems(),
         style: GoogleFonts.manrope(color: Colors.white, fontSize: 15),
         decoration: InputDecoration(
           hintText: 'Search by color, type, brand...',
@@ -153,6 +200,46 @@ class _LostScreenState extends State<LostScreen> {
         ),
       ),
     );
+  }
+
+  Future<void> _showDistrictSheet() async {
+    final selected = await showModalBottomSheet<String>(
+      context: context,
+      backgroundColor: _kSlate900,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (_) => _LostFilterSheet(
+        title: 'Select District',
+        items: _districts,
+        current: _selectedDistrict,
+      ),
+    );
+    if (selected != null && mounted) {
+      setState(() => _selectedDistrict = selected.isEmpty ? null : selected);
+      _searchItems();
+    }
+  }
+
+  Future<void> _showCategorySheet() async {
+    final selected = await showModalBottomSheet<String>(
+      context: context,
+      backgroundColor: _kSlate900,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (_) => _LostFilterSheet(
+        title: 'Select Category',
+        items: _categories,
+        current: _selectedCategory,
+      ),
+    );
+    if (selected != null && mounted) {
+      setState(() => _selectedCategory = selected.isEmpty ? null : selected);
+      _searchItems();
+    }
   }
 
   Widget _buildFilterSection() {
@@ -169,86 +256,78 @@ class _LostScreenState extends State<LostScreen> {
           ),
         ),
         const SizedBox(height: 12),
-
-        // District chips
-        SingleChildScrollView(
-          scrollDirection: Axis.horizontal,
-          physics: const BouncingScrollPhysics(),
-          child: Row(
-            children: _districts.map((d) {
-              final selected = _selectedDistrict == d;
-              return Padding(
-                padding: const EdgeInsets.only(right: 8),
-                child: GestureDetector(
-                  onTap: () => setState(() {
-                    _selectedDistrict = selected ? null : d;
-                  }),
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 24,
-                      vertical: 10,
-                    ),
-                    decoration: BoxDecoration(
-                      color: selected ? _kPrimary : _kCardBg,
-                      borderRadius: BorderRadius.circular(100),
-                    ),
-                    child: Text(
-                      d,
-                      style: GoogleFonts.manrope(
-                        color: selected ? Colors.white : _kSlate400,
-                        fontSize: 14,
-                        fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
-                      ),
-                    ),
-                  ),
-                ),
-              );
-            }).toList(),
-          ),
+        _LostDropdownField(
+          selected: _selectedDistrict,
+          placeholder: 'Select District',
+          onTap: _showDistrictSheet,
         ),
         const SizedBox(height: 12),
-
-        // Category chips
-        SingleChildScrollView(
-          scrollDirection: Axis.horizontal,
-          physics: const BouncingScrollPhysics(),
-          child: Row(
-            children: _categories.map((c) {
-              final selected = _selectedCategory == c;
-              return Padding(
-                padding: const EdgeInsets.only(right: 8),
-                child: GestureDetector(
-                  onTap: () => setState(() {
-                    _selectedCategory = selected ? null : c;
-                  }),
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 24,
-                      vertical: 10,
-                    ),
-                    decoration: BoxDecoration(
-                      color: selected ? _kPrimary : _kCardBg,
-                      borderRadius: BorderRadius.circular(100),
-                    ),
-                    child: Text(
-                      c,
-                      style: GoogleFonts.manrope(
-                        color: selected ? Colors.white : _kSlate400,
-                        fontSize: 14,
-                        fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
-                      ),
-                    ),
-                  ),
-                ),
-              );
-            }).toList(),
-          ),
+        _LostDropdownField(
+          selected: _selectedCategory,
+          placeholder: 'Select Category',
+          onTap: _showCategorySheet,
         ),
       ],
     );
   }
 
   Widget _buildRecentItems() {
+    // ── Search results view ──────────────────────────────────────────────────
+    if (_hasSearched) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Search Results (${_searchResults.length} found)',
+            style: GoogleFonts.manrope(
+              color: Colors.white,
+              fontSize: 20,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          const SizedBox(height: 16),
+          if (_isSearching)
+            const Center(
+              child: Padding(
+                padding: EdgeInsets.symmetric(vertical: 48),
+                child: CircularProgressIndicator(color: _kPrimary),
+              ),
+            )
+          else if (_searchResults.isEmpty)
+            Center(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 64),
+                child: Column(
+                  children: [
+                    const Text('🔍', style: TextStyle(fontSize: 48)),
+                    const SizedBox(height: 12),
+                    Text(
+                      'No items found',
+                      style: GoogleFonts.manrope(
+                        color: _kSlate400,
+                        fontSize: 16,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      'Try different search terms',
+                      style: GoogleFonts.manrope(
+                        color: _kSlate500,
+                        fontSize: 14,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            )
+          else
+            ..._searchResults.map((item) => _ItemCard(item: item)),
+        ],
+      );
+    }
+
+    // ── Recent items view ────────────────────────────────────────────────────
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -261,38 +340,657 @@ class _LostScreenState extends State<LostScreen> {
           ),
         ),
         const SizedBox(height: 16),
-        // Empty state
-        Center(
-          child: Padding(
-            padding: const EdgeInsets.symmetric(vertical: 64),
-            child: Column(
-              children: [
-                const Text(
-                  '\u{1F4ED}',
-                  style: TextStyle(fontSize: 48),
+        if (_recentItems.isEmpty)
+          Center(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 64),
+              child: Column(
+                children: [
+                  const Text(
+                    '\u{1F4ED}',
+                    style: TextStyle(fontSize: 48),
+                  ),
+                  const SizedBox(height: 12),
+                  Text(
+                    'No recent items yet',
+                    style: GoogleFonts.manrope(
+                      color: _kSlate400,
+                      fontSize: 16,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    'Check back soon!',
+                    style: GoogleFonts.manrope(
+                      color: _kSlate500,
+                      fontSize: 14,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          )
+        else
+          ..._recentItems.map((item) => _ItemCard(item: item)),
+      ],
+    );
+  }
+}
+
+// ─── Lost Screen Dropdown Field ──────────────────────────────────────────────
+class _LostDropdownField extends StatelessWidget {
+  final String? selected;
+  final String placeholder;
+  final VoidCallback onTap;
+
+  const _LostDropdownField({
+    required this.selected,
+    required this.placeholder,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 15),
+        decoration: BoxDecoration(
+          color: _kCardBg,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: _kSlate400.withValues(alpha: 0.18)),
+        ),
+        child: Row(
+          children: [
+            Expanded(
+              child: Text(
+                selected ?? placeholder,
+                style: GoogleFonts.manrope(
+                  fontSize: 14,
+                  color: selected != null ? Colors.white : _kSlate400,
                 ),
-                const SizedBox(height: 12),
-                Text(
-                  'No recent items yet',
-                  style: GoogleFonts.manrope(
-                    color: _kSlate400,
-                    fontSize: 16,
-                    fontWeight: FontWeight.w500,
+              ),
+            ),
+            const Icon(Icons.keyboard_arrow_down, color: _kSlate400, size: 22),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ─── Lost Screen Filter Bottom Sheet ─────────────────────────────────────────
+class _LostFilterSheet extends StatelessWidget {
+  final String title;
+  final List<String> items;
+  final String? current;
+
+  const _LostFilterSheet({
+    required this.title,
+    required this.items,
+    this.current,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return DraggableScrollableSheet(
+      initialChildSize: 0.6,
+      maxChildSize: 0.85,
+      minChildSize: 0.4,
+      expand: false,
+      builder: (ctx, scrollCtrl) {
+        return Container(
+          decoration: const BoxDecoration(
+            color: _kSlate900,
+            borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+          ),
+          child: Column(
+            children: [
+              // Handle
+              Padding(
+                padding: const EdgeInsets.only(top: 12, bottom: 4),
+                child: Container(
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.2),
+                    borderRadius: BorderRadius.circular(2),
                   ),
                 ),
-                const SizedBox(height: 4),
-                Text(
-                  'Check back soon!',
+              ),
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                child: Text(
+                  title,
                   style: GoogleFonts.manrope(
-                    color: _kSlate500,
-                    fontSize: 14,
+                    fontSize: 16,
+                    fontWeight: FontWeight.w700,
+                    color: Colors.white,
+                  ),
+                ),
+              ),
+              Divider(height: 1, color: Colors.white.withValues(alpha: 0.07)),
+              Expanded(
+                child: ListView.separated(
+                  controller: scrollCtrl,
+                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+                  itemCount: items.length + 1,
+                  separatorBuilder: (_, __) =>
+                      Divider(height: 1, color: Colors.white.withValues(alpha: 0.05)),
+                  itemBuilder: (_, i) {
+                    // Clear option at top
+                    if (i == 0) {
+                      return ListTile(
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 8),
+                        title: Text(
+                          'Clear',
+                          style: GoogleFonts.manrope(
+                            fontSize: 15,
+                            color: _kSlate400,
+                            fontWeight: FontWeight.w400,
+                          ),
+                        ),
+                        onTap: () => Navigator.pop(ctx, ''),
+                      );
+                    }
+                    final item = items[i - 1];
+                    final isActive = item == current;
+                    return ListTile(
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 8),
+                      title: Text(
+                        item,
+                        style: GoogleFonts.manrope(
+                          fontSize: 15,
+                          color: isActive ? _kPrimary : Colors.white,
+                          fontWeight: isActive ? FontWeight.w700 : FontWeight.w400,
+                        ),
+                      ),
+                      trailing: isActive
+                          ? const Icon(Icons.check_rounded, color: _kPrimary, size: 20)
+                          : null,
+                      onTap: () => Navigator.pop(ctx, item),
+                    );
+                  },
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+}
+
+// ─── Item Card ───────────────────────────────────────────────────────────────
+class _ItemCard extends StatelessWidget {
+  const _ItemCard({required this.item});
+
+  final Map<String, dynamic> item;
+
+  String _buildPhotoUrl() {
+    try {
+      final photoList = item['photo_url'] as List<dynamic>;
+      if (photoList.isEmpty) return '';
+      final path = photoList[0] as String;
+      final filename = path.split('/').last;
+      final itemId = item['id'];
+      return '$_kBaseUrl/items/photos/$itemId/$filename';
+    } catch (_) {
+      return '';
+    }
+  }
+
+  String _formatDate() {
+    final dateStr = item['created_at'] as String?;
+    if (dateStr == null) return 'Unknown date';
+    try {
+      final date = DateTime.parse(dateStr).toLocal();
+      final now = DateTime.now();
+      final today = DateTime(now.year, now.month, now.day);
+      final itemDay = DateTime(date.year, date.month, date.day);
+      final diff = today.difference(itemDay).inDays;
+      if (diff == 0) return 'Found Today';
+      if (diff == 1) return 'Found Yesterday';
+      if (diff < 7) return 'Found $diff days ago';
+      return 'Found ${date.day}/${date.month}/${date.year}';
+    } catch (_) {
+      return 'Unknown date';
+    }
+  }
+
+  void _showModal(BuildContext context) {
+    final photoUrl = _buildPhotoUrl();
+    final category = item['category'] as String? ?? 'Unknown';
+    final features = item['features'];
+    final district = item['district'] as String? ?? 'Unknown';
+    final dateLabel = _formatDate();
+
+    final featureEntries = <MapEntry<String, String>>[];
+    if (features is Map) {
+      final fields = <String, dynamic>{
+        'Color': features['color'],
+        'Brand': features['brand'],
+        'Material': features['material'],
+        'Size': features['size'],
+        'Distinguishing Feature': features['distinguishing_feature'],
+        'Description': features['description'],
+      };
+      for (final e in fields.entries) {
+        final v = e.value;
+        if (v != null && v.toString().trim().isNotEmpty) {
+          featureEntries.add(MapEntry(e.key, v.toString()));
+        }
+      }
+    }
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      barrierColor: Colors.black.withValues(alpha: 0.6),
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => DraggableScrollableSheet(
+        initialChildSize: 0.85,
+        maxChildSize: 0.95,
+        minChildSize: 0.5,
+        expand: false,
+        builder: (_, scrollCtrl) => Container(
+          decoration: const BoxDecoration(
+            color: _kCardBg,
+            borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+          ),
+          child: Column(
+            children: [
+              // ── Drag handle ────────────────────────────────────────
+              Padding(
+                padding: const EdgeInsets.only(top: 12, bottom: 8),
+                child: Container(
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.2),
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+              // ── Scrollable content ─────────────────────────────────
+              Expanded(
+                child: SingleChildScrollView(
+                  controller: scrollCtrl,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Photo with category badge
+                      Stack(
+                        children: [
+                          photoUrl.isNotEmpty
+                              ? Image.network(
+                                  photoUrl,
+                                  width: double.infinity,
+                                  height: 240,
+                                  fit: BoxFit.cover,
+                                  loadingBuilder: (c, child, prog) {
+                                    if (prog == null) return child;
+                                    return Container(
+                                      width: double.infinity,
+                                      height: 240,
+                                      color: _kSlate900,
+                                      child: const Center(
+                                        child: CircularProgressIndicator(
+                                            color: _kPrimary, strokeWidth: 2),
+                                      ),
+                                    );
+                                  },
+                                  errorBuilder: (c, e, s) => Container(
+                                    width: double.infinity,
+                                    height: 240,
+                                    color: _kSlate900,
+                                    child: const Icon(
+                                        Icons.image_not_supported_outlined,
+                                        color: _kSlate500,
+                                        size: 48),
+                                  ),
+                                )
+                              : Container(
+                                  width: double.infinity,
+                                  height: 240,
+                                  color: _kSlate900,
+                                  child: const Icon(
+                                      Icons.image_not_supported_outlined,
+                                      color: _kSlate500,
+                                      size: 48),
+                                ),
+                          Positioned(
+                            top: 12,
+                            left: 12,
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 10, vertical: 4),
+                              decoration: BoxDecoration(
+                                color: _kAccentPurple,
+                                borderRadius: BorderRadius.circular(100),
+                              ),
+                              child: Text(
+                                category,
+                                style: GoogleFonts.manrope(
+                                  color: Colors.white,
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      // Details section
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(20, 20, 20, 24),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Item Details',
+                              style: GoogleFonts.manrope(
+                                color: Colors.white,
+                                fontSize: 18,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                            if (featureEntries.isNotEmpty) ...[
+                              const SizedBox(height: 16),
+                              ...featureEntries.asMap().entries.map((e) {
+                                return Column(
+                                  children: [
+                                    Row(
+                                      mainAxisAlignment:
+                                          MainAxisAlignment.spaceBetween,
+                                      children: [
+                                        Text(
+                                          e.value.key,
+                                          style: GoogleFonts.manrope(
+                                            color: _kSlate400,
+                                            fontSize: 14,
+                                            fontWeight: FontWeight.w500,
+                                          ),
+                                        ),
+                                        const SizedBox(width: 16),
+                                        Flexible(
+                                          child: Text(
+                                            e.value.value,
+                                            style: GoogleFonts.manrope(
+                                              color: Colors.white,
+                                              fontSize: 14,
+                                              fontWeight: FontWeight.w500,
+                                            ),
+                                            textAlign: TextAlign.right,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                    if (e.key < featureEntries.length - 1)
+                                      Divider(
+                                          height: 20,
+                                          color: Colors.white
+                                              .withValues(alpha: 0.08)),
+                                  ],
+                                );
+                              }),
+                            ],
+                            const SizedBox(height: 16),
+                            Row(
+                              children: [
+                                const Icon(Icons.location_pin,
+                                    color: _kSlate400, size: 16),
+                                const SizedBox(width: 6),
+                                Text(
+                                  district,
+                                  style: GoogleFonts.manrope(
+                                      color: _kSlate400, fontSize: 14),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              dateLabel,
+                              style: GoogleFonts.manrope(
+                                color: _kPrimary,
+                                fontSize: 13,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                            const SizedBox(height: 24),
+                            SizedBox(
+                              width: double.infinity,
+                              height: 56,
+                              child: ElevatedButton(
+                                onPressed: () {
+                                  Navigator.pop(ctx);
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(
+                                        content: Text(
+                                            'Chat feature coming soon!')),
+                                  );
+                                },
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: _kPrimary,
+                                  foregroundColor: Colors.white,
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(14),
+                                  ),
+                                  elevation: 0,
+                                ),
+                                child: Text(
+                                  'This is mine!',
+                                  style: GoogleFonts.manrope(
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.w700,
+                                    fontSize: 16,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final photoUrl = _buildPhotoUrl();
+    final category = item['category'] as String? ?? 'Unknown';
+    final features = item['features'];
+    final description = (features is Map)
+        ? (features['description'] as String? ?? 'No description')
+        : 'No description';
+    final district = item['district'] as String? ?? 'Unknown';
+    final dateLabel = _formatDate();
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 16),
+      decoration: BoxDecoration(
+        color: _kCardBg,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.20),
+            blurRadius: 20,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // ── Tappable area: photo + description + district + date ───────
+          GestureDetector(
+            onTap: () => _showModal(context),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Photo with category badge
+                Stack(
+                  children: [
+                    ClipRRect(
+                      borderRadius:
+                          const BorderRadius.vertical(top: Radius.circular(20)),
+                      child: photoUrl.isNotEmpty
+                          ? Image.network(
+                              photoUrl,
+                              width: double.infinity,
+                              height: 180,
+                              fit: BoxFit.cover,
+                              loadingBuilder: (ctx, child, progress) {
+                                if (progress == null) return child;
+                                return Container(
+                                  width: double.infinity,
+                                  height: 180,
+                                  color: _kSlate900,
+                                  child: const Center(
+                                    child: CircularProgressIndicator(
+                                      color: _kPrimary,
+                                      strokeWidth: 2,
+                                    ),
+                                  ),
+                                );
+                              },
+                              errorBuilder: (ctx, error, stack) => Container(
+                                width: double.infinity,
+                                height: 180,
+                                color: _kSlate900,
+                                child: const Icon(
+                                  Icons.image_not_supported_outlined,
+                                  color: _kSlate500,
+                                  size: 40,
+                                ),
+                              ),
+                            )
+                          : Container(
+                              width: double.infinity,
+                              height: 180,
+                              color: _kSlate900,
+                              child: const Icon(
+                                Icons.image_not_supported_outlined,
+                                color: _kSlate500,
+                                size: 40,
+                              ),
+                            ),
+                    ),
+                    // Category badge — top-left overlay
+                    Positioned(
+                      top: 12,
+                      left: 12,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 10, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: _kAccentPurple,
+                          borderRadius: BorderRadius.circular(100),
+                        ),
+                        child: Text(
+                          category,
+                          style: GoogleFonts.manrope(
+                            color: Colors.white,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+
+                // Description, district, date
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        description,
+                        style: GoogleFonts.manrope(
+                          color: Colors.white,
+                          fontSize: 15,
+                          fontWeight: FontWeight.w700,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      const SizedBox(height: 8),
+                      Row(
+                        children: [
+                          const Icon(Icons.location_pin,
+                              color: _kSlate400, size: 14),
+                          const SizedBox(width: 4),
+                          Text(
+                            district,
+                            style: GoogleFonts.manrope(
+                              color: _kSlate400,
+                              fontSize: 13,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        dateLabel,
+                        style: GoogleFonts.manrope(
+                          color: _kPrimary,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                    ],
                   ),
                 ),
               ],
             ),
           ),
-        ),
-      ],
+
+          // ── "This is mine!" button — outside GestureDetector ──────────
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+            child: SizedBox(
+              width: double.infinity,
+              height: 48,
+              child: ElevatedButton(
+                onPressed: () {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                        content: Text('Chat feature coming soon!')),
+                  );
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: _kPrimary,
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  elevation: 0,
+                ),
+                child: Text(
+                  'This is mine!',
+                  style: GoogleFonts.manrope(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w700,
+                    fontSize: 15,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

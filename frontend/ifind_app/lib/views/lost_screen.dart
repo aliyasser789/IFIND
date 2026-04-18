@@ -1,10 +1,15 @@
+import 'dart:convert';
 import 'dart:ui';
 
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
+import '../controllers/chat_controller.dart';
 import '../services/api_service.dart';
+import '../services/badge_service.dart';
+import '../services/storage_service.dart';
 import 'chat_list_screen.dart';
+import 'chat_screen.dart';
 import 'home_screen.dart';
 import 'settings_screen.dart';
 
@@ -43,16 +48,33 @@ class _LostScreenState extends State<LostScreen> {
   List<Map<String, dynamic>> _searchResults = [];
   bool _isSearching = false;
   bool _hasSearched = false;
+  int _unreadCount = 0;
 
   @override
   void initState() {
     super.initState();
     _loadFilters();
+    _loadUnreadCount();
+  }
+
+  Future<void> _loadUnreadCount() async {
+    final chats = await ChatController().getUserChats();
+    if (!mounted) return;
+    final allChatIds = chats
+        .map((c) => (c['chat_id'] ?? c['id'])?.toString() ?? '')
+        .where((id) => id.isNotEmpty)
+        .toList();
+    final unread = await BadgeService.getUnseenCount(allChatIds);
+    if (!mounted) return;
+    setState(() {
+      _unreadCount = unread;
+    });
   }
 
   Future<void> _loadFilters() async {
     final api = ApiService();
-    final results = await Future.wait([api.getDistricts(), api.getCategories()]);
+    final results =
+        await Future.wait([api.getDistricts(), api.getCategories()]);
     if (mounted) {
       setState(() {
         _districts = results[0];
@@ -75,7 +97,9 @@ class _LostScreenState extends State<LostScreen> {
 
   Future<void> _searchItems() async {
     final query = _searchController.text.trim();
-    if (query.isEmpty && _selectedDistrict == null && _selectedCategory == null) {
+    if (query.isEmpty &&
+        _selectedDistrict == null &&
+        _selectedCategory == null) {
       if (mounted) {
         setState(() {
           _hasSearched = false;
@@ -118,50 +142,52 @@ class _LostScreenState extends State<LostScreen> {
           // ── Scrollable body ──────────────────────────────────────────
           Expanded(
             child: _isLoading
-                ? const Center(child: CircularProgressIndicator(color: _kPrimary))
+                ? const Center(
+                    child: CircularProgressIndicator(color: _kPrimary))
                 : SingleChildScrollView(
-              padding: const EdgeInsets.fromLTRB(24, 32, 24, 32),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Title section
-                  Text(
-                    'I Lost Something',
-                    style: GoogleFonts.manrope(
-                      color: Colors.white,
-                      fontSize: 32,
-                      fontWeight: FontWeight.w700,
-                      letterSpacing: -0.3,
+                    padding: const EdgeInsets.fromLTRB(24, 32, 24, 32),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        // Title section
+                        Text(
+                          'I Lost Something',
+                          style: GoogleFonts.manrope(
+                            color: Colors.white,
+                            fontSize: 32,
+                            fontWeight: FontWeight.w700,
+                            letterSpacing: -0.3,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          'Search or browse found items near you',
+                          style: GoogleFonts.manrope(
+                            color: _kSlate400,
+                            fontSize: 16,
+                            fontWeight: FontWeight.w400,
+                          ),
+                        ),
+                        const SizedBox(height: 32),
+
+                        // Search bar
+                        _buildSearchBar(),
+                        const SizedBox(height: 32),
+
+                        // Filter section
+                        _buildFilterSection(),
+                        const SizedBox(height: 32),
+
+                        // Recent items
+                        _buildRecentItems(),
+                      ],
                     ),
                   ),
-                  const SizedBox(height: 4),
-                  Text(
-                    'Search or browse found items near you',
-                    style: GoogleFonts.manrope(
-                      color: _kSlate400,
-                      fontSize: 16,
-                      fontWeight: FontWeight.w400,
-                    ),
-                  ),
-                  const SizedBox(height: 32),
-
-                  // Search bar
-                  _buildSearchBar(),
-                  const SizedBox(height: 32),
-
-                  // Filter section
-                  _buildFilterSection(),
-                  const SizedBox(height: 32),
-
-                  // Recent items
-                  _buildRecentItems(),
-                ],
-              ),
-            ),
           ),
 
           // ── Bottom nav ───────────────────────────────────────────────
           _BottomNavBar(
+            unreadCount: _unreadCount,
             onHomeTap: () => Navigator.pushReplacement(
               context,
               MaterialPageRoute(builder: (_) => const HomeScreen()),
@@ -476,13 +502,14 @@ class _LostFilterSheet extends StatelessWidget {
                   controller: scrollCtrl,
                   padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
                   itemCount: items.length + 1,
-                  separatorBuilder: (_, __) =>
-                      Divider(height: 1, color: Colors.white.withValues(alpha: 0.05)),
+                  separatorBuilder: (_, __) => Divider(
+                      height: 1, color: Colors.white.withValues(alpha: 0.05)),
                   itemBuilder: (_, i) {
                     // Clear option at top
                     if (i == 0) {
                       return ListTile(
-                        contentPadding: const EdgeInsets.symmetric(horizontal: 8),
+                        contentPadding:
+                            const EdgeInsets.symmetric(horizontal: 8),
                         title: Text(
                           'Clear',
                           style: GoogleFonts.manrope(
@@ -503,11 +530,13 @@ class _LostFilterSheet extends StatelessWidget {
                         style: GoogleFonts.manrope(
                           fontSize: 15,
                           color: isActive ? _kPrimary : Colors.white,
-                          fontWeight: isActive ? FontWeight.w700 : FontWeight.w400,
+                          fontWeight:
+                              isActive ? FontWeight.w700 : FontWeight.w400,
                         ),
                       ),
                       trailing: isActive
-                          ? const Icon(Icons.check_rounded, color: _kPrimary, size: 20)
+                          ? const Icon(Icons.check_rounded,
+                              color: _kPrimary, size: 20)
                           : null,
                       onTap: () => Navigator.pop(ctx, item),
                     );
@@ -557,6 +586,65 @@ class _ItemCard extends StatelessWidget {
     } catch (_) {
       return 'Unknown date';
     }
+  }
+
+  Map<String, dynamic> _decodeJwtPayload(String token) {
+    final parts = token.split('.');
+    if (parts.length != 3) return {};
+    try {
+      final padded = base64Url.normalize(parts[1]);
+      return jsonDecode(utf8.decode(base64Url.decode(padded)))
+          as Map<String, dynamic>;
+    } catch (_) {
+      return {};
+    }
+  }
+
+  Future<void> _openChat(BuildContext context) async {
+    final token = await StorageService().getToken();
+    if (token == null) return;
+
+    final payload = _decodeJwtPayload(token);
+    final currentUserId = (payload['sub'] as String?) ?? '';
+
+    final itemId   = item['id']?.toString() ?? '';
+    final finderId = item['user_id']?.toString() ?? '';
+
+    final chatId =
+        await ChatController().startChat(itemId, finderId, currentUserId);
+    if (chatId == null) return;
+    if (!context.mounted) return;
+
+    final features = item['features'];
+    final itemName =
+        (features is Map ? features['description'] as String? : null) ??
+            (item['name'] as String?) ??
+            'Unknown Item';
+    final district = (item['district'] as String?) ?? '';
+    final foundDate = (item['created_at'] as String?) ?? '';
+
+    final itemPhoto = _buildPhotoUrl();
+    final itemCategory = item['category']?.toString() ?? '';
+    final itemFeatures =
+        (item['features'] is Map<String, dynamic>)
+            ? item['features'] as Map<String, dynamic>
+            : <String, dynamic>{};
+
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => ChatScreen(
+          chatId: chatId,
+          itemName: itemName,
+          district: district,
+          foundDate: foundDate,
+          finderId: finderId,
+          itemPhoto: itemPhoto,
+          itemCategory: itemCategory,
+          itemFeatures: itemFeatures,
+        ),
+      ),
+    );
   }
 
   void _showModal(BuildContext context) {
@@ -765,11 +853,7 @@ class _ItemCard extends StatelessWidget {
                               child: ElevatedButton(
                                 onPressed: () {
                                   Navigator.pop(ctx);
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    const SnackBar(
-                                        content: Text(
-                                            'Chat feature coming soon!')),
-                                  );
+                                  _openChat(context);
                                 },
                                 style: ElevatedButton.styleFrom(
                                   backgroundColor: _kPrimary,
@@ -964,12 +1048,7 @@ class _ItemCard extends StatelessWidget {
               width: double.infinity,
               height: 48,
               child: ElevatedButton(
-                onPressed: () {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                        content: Text('Chat feature coming soon!')),
-                  );
-                },
+                onPressed: () => _openChat(context),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: _kPrimary,
                   foregroundColor: Colors.white,
@@ -1193,11 +1272,13 @@ class _LostHeader extends StatelessWidget {
 // ─── Bottom Nav Bar ──────────────────────────────────────────────────────────
 class _BottomNavBar extends StatelessWidget {
   const _BottomNavBar({
+    required this.unreadCount,
     required this.onHomeTap,
     required this.onChatTap,
     required this.onSettingsTap,
   });
 
+  final int unreadCount;
   final VoidCallback onHomeTap;
   final VoidCallback onChatTap;
   final VoidCallback onSettingsTap;

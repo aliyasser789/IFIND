@@ -1,12 +1,16 @@
+import 'dart:convert';
 import 'dart:ui';
 
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
+import '../controllers/chat_controller.dart';
 import '../services/api_service.dart';
+import '../services/badge_service.dart';
 import '../services/storage_service.dart';
 import 'auth_screen.dart';
 import 'chat_list_screen.dart';
+import 'chat_screen.dart';
 import 'found_screen.dart';
 import 'lost_screen.dart';
 import 'settings_screen.dart';
@@ -39,11 +43,34 @@ class _HomeScreenState extends State<HomeScreen> {
   String _displayName = '';
   bool _loading = true;
   List<Map<String, dynamic>> _recentItems = [];
+  int _unreadCount = 0;
+  bool _didInit = false;
 
   @override
   void initState() {
     super.initState();
     _init();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // Skip the first call (initState already kicked off _init).
+    // On subsequent calls (e.g. returning from a pushed route), refresh badge.
+    if (_didInit) _refreshBadge();
+  }
+
+  /// Lightweight refresh — only updates the unread badge count.
+  Future<void> _refreshBadge() async {
+    final chats = await ChatController().getUserChats();
+    if (!mounted) return;
+    final allChatIds = chats
+        .map((c) => (c['chat_id'] ?? c['id'])?.toString() ?? '')
+        .where((id) => id.isNotEmpty)
+        .toList();
+    final unread = await BadgeService.getUnseenCount(allChatIds);
+    if (!mounted) return;
+    setState(() => _unreadCount = unread);
   }
 
   Future<void> _init() async {
@@ -66,10 +93,21 @@ class _HomeScreenState extends State<HomeScreen> {
     final items = await ApiService().getRecentItems();
     if (!mounted) return;
 
+    final chats = await ChatController().getUserChats();
+    if (!mounted) return;
+    final allChatIds = chats
+        .map((c) => (c['chat_id'] ?? c['id'])?.toString() ?? '')
+        .where((id) => id.isNotEmpty)
+        .toList();
+    final unread = await BadgeService.getUnseenCount(allChatIds);
+    if (!mounted) return;
+
     setState(() {
       _displayName = name;
       _recentItems = items.take(5).toList();
+      _unreadCount = unread;
       _loading = false;
+      _didInit = true;
     });
   }
 
@@ -171,6 +209,7 @@ class _HomeScreenState extends State<HomeScreen> {
               _BottomNavBar(
                 onChatTap: _goToChat,
                 onSettingsTap: _goToSettings,
+                unreadCount: _unreadCount,
               ),
             ],
           ),
@@ -626,6 +665,57 @@ class _HomeItemCard extends StatelessWidget {
     }
   }
 
+  Map<String, dynamic> _decodeJwtPayload(String token) {
+    final parts = token.split('.');
+    if (parts.length != 3) return {};
+    try {
+      final padded = base64Url.normalize(parts[1]);
+      return jsonDecode(utf8.decode(base64Url.decode(padded))) as Map<String, dynamic>;
+    } catch (_) {
+      return {};
+    }
+  }
+
+  Future<void> _openChat(BuildContext context) async {
+    final token = await StorageService().getToken();
+    if (token == null) return;
+
+    final payload       = _decodeJwtPayload(token);
+    final currentUserId = (payload['sub'] as String?) ?? '';
+
+    final itemId   = item['id']?.toString() ?? '';
+    final finderId = item['user_id']?.toString() ?? '';
+
+    final chatId = await ChatController().startChat(itemId, finderId, currentUserId);
+    if (chatId == null) return;
+    if (!context.mounted) return;
+
+    final features     = item['features'];
+    final itemName     = (features is Map ? features['description'] as String? : null)
+                         ?? (item['name'] as String?) ?? 'Unknown Item';
+    final district     = (item['district']   as String?) ?? '';
+    final foundDate    = (item['created_at'] as String?) ?? '';
+    final itemPhoto    = _buildPhotoUrl();
+    final itemCategory = item['category']?.toString() ?? '';
+    final itemFeatures = (features as Map<String, dynamic>?) ?? {};
+
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => ChatScreen(
+          chatId:       chatId,
+          itemName:     itemName,
+          district:     district,
+          foundDate:    foundDate,
+          finderId:     finderId,
+          itemPhoto:    itemPhoto,
+          itemCategory: itemCategory,
+          itemFeatures: itemFeatures,
+        ),
+      ),
+    );
+  }
+
   void _showModal(BuildContext context) {
     final photoUrl = _buildPhotoUrl();
     final category = item['category'] as String? ?? 'Unknown';
@@ -832,11 +922,7 @@ class _HomeItemCard extends StatelessWidget {
                               child: ElevatedButton(
                                 onPressed: () {
                                   Navigator.pop(ctx);
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    const SnackBar(
-                                        content: Text(
-                                            'Chat feature coming soon!')),
-                                  );
+                                  _openChat(context);
                                 },
                                 style: ElevatedButton.styleFrom(
                                   backgroundColor: _kPrimary,
@@ -1031,12 +1117,7 @@ class _HomeItemCard extends StatelessWidget {
               width: double.infinity,
               height: 48,
               child: ElevatedButton(
-                onPressed: () {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                        content: Text('Chat feature coming soon!')),
-                  );
-                },
+                onPressed: () => _openChat(context),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: _kPrimary,
                   foregroundColor: Colors.white,
@@ -1067,10 +1148,12 @@ class _BottomNavBar extends StatelessWidget {
   const _BottomNavBar({
     required this.onChatTap,
     required this.onSettingsTap,
+    required this.unreadCount,
   });
 
   final VoidCallback onChatTap;
   final VoidCallback onSettingsTap;
+  final int unreadCount;
 
   @override
   Widget build(BuildContext context) {
@@ -1107,6 +1190,7 @@ class _BottomNavBar extends StatelessWidget {
                     label: 'CHAT',
                     isActive: false,
                     onTap: onChatTap,
+                    unreadCount: unreadCount,
                   ),
                   // Settings
                   _NavItem(
@@ -1131,12 +1215,14 @@ class _NavItem extends StatelessWidget {
     required this.label,
     required this.isActive,
     this.onTap,
+    this.unreadCount = 0,
   });
 
   final IconData icon;
   final String label;
   final bool isActive;
   final VoidCallback? onTap;
+  final int unreadCount;
 
   @override
   Widget build(BuildContext context) {
@@ -1156,7 +1242,36 @@ class _NavItem extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(icon, color: color, size: 24),
+            unreadCount > 0
+                ? Stack(
+                    clipBehavior: Clip.none,
+                    children: [
+                      Icon(icon, color: color, size: 24),
+                      Positioned(
+                        top: -4,
+                        right: -6,
+                        child: Container(
+                          width: 16,
+                          height: 16,
+                          decoration: const BoxDecoration(
+                            color: Color(0xFFE24B4A),
+                            shape: BoxShape.circle,
+                          ),
+                          child: Center(
+                            child: Text(
+                              '$unreadCount',
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 10,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  )
+                : Icon(icon, color: color, size: 24),
             const SizedBox(height: 4),
             Text(
               label,

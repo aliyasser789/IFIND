@@ -66,7 +66,7 @@ def recent_items(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> List[dict]:
-    return get_recent_items(db)
+    return get_recent_items(db, current_user.id)
 
 
 @router.get("/districts")

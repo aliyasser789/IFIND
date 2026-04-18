@@ -5,6 +5,9 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 BACKEND_DIR = os.path.join(BASE_DIR, "backend")
 sys.path.insert(0, BACKEND_DIR)
 
+
+
+
 # Explicitly load .env from backend/ so JWT_SECRET and email vars are available
 from dotenv import load_dotenv
 from pathlib import Path
@@ -20,11 +23,20 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.routers.auth import router as auth_router, user_router
 from app.routers.ai import router as ai_router
 from app.routers.items import router as items_router
+from app.routers.chat import router as chat_router
 
 # Import models so SQLAlchemy registers them before create_all is called
 import app.models.found_item  # noqa: F401
 
 app = FastAPI(title="IFind API")
+
+from fastapi.exceptions import RequestValidationError
+from fastapi.responses import JSONResponse
+
+@app.exception_handler(RequestValidationError)
+async def validation_exception_handler(request, exc):
+    print(f"422 DETAIL: {exc.errors()}")
+    return JSONResponse(status_code=422, content={"detail": exc.errors()})
 
 app.add_middleware(
     CORSMiddleware,
@@ -40,6 +52,7 @@ app.include_router(auth_router)
 app.include_router(user_router)
 app.include_router(ai_router)
 app.include_router(items_router)
+app.include_router(chat_router)
 
 @app.get("/ping")
 def ping():

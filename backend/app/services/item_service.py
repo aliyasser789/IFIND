@@ -45,8 +45,8 @@ def search_found_items(
         OR features->>'distinguishing_feature' ILIKE :kw
     """
 
-    extra_filters = ""
-    params: dict = {"kw": f"%{keyword}%"}
+    extra_filters = " AND user_id != :user_id"
+    params: dict = {"kw": f"%{keyword}%", "user_id": str(user_id)}
 
     if district:
         extra_filters += " AND district ILIKE :district"
@@ -78,14 +78,15 @@ def search_found_items(
     return [dict(row) for row in rows]
 
 
-def get_recent_items(db: Session) -> List[dict]:
+def get_recent_items(db: Session, user_id: uuid.UUID) -> List[dict]:
     district_list = ", ".join(f"'{d}'" for d in CAIRO_DISTRICTS)
     query_text = f"""
         SELECT *
         FROM found_items
         WHERE district IN ({district_list})
+          AND user_id != :user_id
         ORDER BY created_at DESC
         LIMIT 20
     """
-    result = db.execute(text(query_text))
+    result = db.execute(text(query_text), {"user_id": str(user_id)})
     return [dict(row) for row in result.mappings().all()]

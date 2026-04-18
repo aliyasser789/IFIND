@@ -20,8 +20,12 @@ if config.config_file_name is not None:
 # target_metadata = mymodel.Base.metadata
 from app.DB_handeling.base import Base
 from app.DB_handeling.config import DATABASE_URL
-from app.models.user import User  # noqa: F401 — registers User with Base.metadata
-from app.models.lost_item import LostItem  # noqa: F401 — registers LostItem with Base.metadata
+config.set_main_option("sqlalchemy.url", DATABASE_URL)
+from app.models.user import User  # noqa: F401
+from app.models.lost_item import LostItem  # noqa: F401
+from app.models.chat import Chat  # noqa: F401
+from app.models.message import Message  # noqa: F401
+from app.models.found_item import FoundItem  # noqa: F401
 target_metadata = Base.metadata
 
 # other values from the config, defined by the needs of env.py,

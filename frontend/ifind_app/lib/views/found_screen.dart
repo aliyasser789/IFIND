@@ -1,5 +1,4 @@
 import 'dart:io';
-import 'dart:math' as math;
 
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
@@ -23,7 +22,8 @@ const _slateDark = Color(0xFF0F172A);
 const _slateCard = Color(0xFF1E293B);
 const _textSecondary = Color(0xFF94A3B8);
 
-const _baseUrl = String.fromEnvironment('BASE_URL', defaultValue: 'http://10.0.2.2:8000');
+const _baseUrl =
+    String.fromEnvironment('BASE_URL', defaultValue: 'http://10.0.2.2:8000');
 
 const _districts = [
   'Tagamoa',
@@ -153,7 +153,8 @@ class _FoundScreenState extends State<FoundScreen> {
     }
 
     final dir = await getTemporaryDirectory();
-    _recordingPath = '${dir.path}/ifind_voice_${DateTime.now().millisecondsSinceEpoch}.aac';
+    _recordingPath =
+        '${dir.path}/ifind_voice_${DateTime.now().millisecondsSinceEpoch}.aac';
 
     await _recorder.startRecorder(
       toFile: _recordingPath,
@@ -174,11 +175,15 @@ class _FoundScreenState extends State<FoundScreen> {
       final formData = FormData.fromMap({
         'file': await MultipartFile.fromFile(path, filename: 'voice.aac'),
       });
-      final response = await _dio.post('$_baseUrl/ai/transcribe-voice', data: formData);
-      final transcription = (response.data as Map<String, dynamic>)['transcription'] as String? ?? '';
+      final response =
+          await _dio.post('$_baseUrl/ai/transcribe-voice', data: formData);
+      final transcription =
+          (response.data as Map<String, dynamic>)['transcription'] as String? ??
+              '';
       if (transcription.isNotEmpty && mounted) {
         final current = _descCtrl.text;
-        final joined = current.isEmpty ? transcription : '$current $transcription';
+        final joined =
+            current.isEmpty ? transcription : '$current $transcription';
         setState(() {
           _descCtrl.value = TextEditingValue(
             text: joined,
@@ -251,7 +256,9 @@ class _FoundScreenState extends State<FoundScreen> {
       }
     } on DioException catch (e) {
       final data = e.response?.data;
-      final msg = (data is Map) ? (data['detail'] ?? 'Submission failed') : 'Submission failed';
+      final msg = (data is Map)
+          ? (data['detail'] ?? 'Submission failed')
+          : 'Submission failed';
       _snackbar(msg.toString());
     } finally {
       if (mounted) setState(() => _isSubmitting = false);
@@ -282,7 +289,8 @@ class _FoundScreenState extends State<FoundScreen> {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(message, style: GoogleFonts.manrope(color: Colors.white)),
-        backgroundColor: success ? const Color(0xFF16A34A) : const Color(0xFFDC2626),
+        backgroundColor:
+            success ? const Color(0xFF16A34A) : const Color(0xFFDC2626),
         behavior: SnackBarBehavior.floating,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
         margin: const EdgeInsets.all(16),
@@ -390,7 +398,8 @@ class _TopBar extends StatelessWidget {
                 color: _slateCard,
                 borderRadius: BorderRadius.circular(10),
               ),
-              child: const Icon(Icons.arrow_back, color: Colors.white, size: 20),
+              child:
+                  const Icon(Icons.arrow_back, color: Colors.white, size: 20),
             ),
           ),
           Text(
@@ -592,7 +601,8 @@ class _PhotoSlot extends StatelessWidget {
                       color: Colors.black.withValues(alpha: 0.65),
                       shape: BoxShape.circle,
                     ),
-                    child: const Icon(Icons.close, color: Colors.white, size: 13),
+                    child:
+                        const Icon(Icons.close, color: Colors.white, size: 13),
                   ),
                 ),
               ),
@@ -624,7 +634,8 @@ class _SlotBorderPainter extends CustomPainter {
 
     const inset = 0.7; // half stroke width
     final rrect = RRect.fromRectAndRadius(
-      Rect.fromLTWH(inset, inset, size.width - inset * 2, size.height - inset * 2),
+      Rect.fromLTWH(
+          inset, inset, size.width - inset * 2, size.height - inset * 2),
       Radius.circular(borderRadius),
     );
 
@@ -693,7 +704,8 @@ class _DistrictField extends StatelessWidget {
                 ),
               ),
             ),
-            const Icon(Icons.keyboard_arrow_down, color: _textSecondary, size: 22),
+            const Icon(Icons.keyboard_arrow_down,
+                color: _textSecondary, size: 22),
           ],
         ),
       ),
@@ -749,8 +761,8 @@ class _DistrictSheet extends StatelessWidget {
                   controller: scrollCtrl,
                   padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
                   itemCount: _districts.length,
-                  separatorBuilder: (_, __) =>
-                      Divider(height: 1, color: Colors.white.withValues(alpha: 0.05)),
+                  separatorBuilder: (_, __) => Divider(
+                      height: 1, color: Colors.white.withValues(alpha: 0.05)),
                   itemBuilder: (_, i) {
                     final d = _districts[i];
                     final isActive = d == current;
@@ -761,11 +773,13 @@ class _DistrictSheet extends StatelessWidget {
                         style: GoogleFonts.manrope(
                           fontSize: 15,
                           color: isActive ? _blue : Colors.white,
-                          fontWeight: isActive ? FontWeight.w700 : FontWeight.w400,
+                          fontWeight:
+                              isActive ? FontWeight.w700 : FontWeight.w400,
                         ),
                       ),
                       trailing: isActive
-                          ? const Icon(Icons.check_rounded, color: _blue, size: 20)
+                          ? const Icon(Icons.check_rounded,
+                              color: _blue, size: 20)
                           : null,
                       onTap: () => Navigator.pop(ctx, d),
                     );
@@ -844,7 +858,8 @@ class _DescriptionField extends StatelessWidget {
                             duration: 550.ms,
                             curve: Curves.easeInOut,
                           )
-                      : const Icon(Icons.mic_rounded, color: _textSecondary, size: 26),
+                      : const Icon(Icons.mic_rounded,
+                          color: _textSecondary, size: 26),
                 ),
               ),
             ],
@@ -902,7 +917,8 @@ class _ConfirmButton extends StatelessWidget {
         style: ElevatedButton.styleFrom(
           backgroundColor: _blue,
           disabledBackgroundColor: _blue.withValues(alpha: 0.45),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
           elevation: 0,
         ),
         child: isLoading
@@ -940,7 +956,8 @@ class _BottomNav extends StatelessWidget {
     return Container(
       decoration: BoxDecoration(
         color: _slateDark,
-        border: Border(top: BorderSide(color: Colors.white.withValues(alpha: 0.07))),
+        border: Border(
+            top: BorderSide(color: Colors.white.withValues(alpha: 0.07))),
       ),
       child: SafeArea(
         top: false,

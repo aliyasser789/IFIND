@@ -16,7 +16,8 @@ class ApiService {
   final Dio _dio = Dio(BaseOptions(
     baseUrl: baseUrl,
     connectTimeout: const Duration(seconds: 8),
-    receiveTimeout: const Duration(seconds: 8),
+    receiveTimeout: const Duration(seconds: 60),
+    sendTimeout: const Duration(seconds: 60),
   ));
 
   Future<bool> pingServer() async {

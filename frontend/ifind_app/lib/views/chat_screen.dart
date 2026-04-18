@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import '../controllers/chat_controller.dart';
+import '../services/api_service.dart';
 import '../services/storage_service.dart';
 import '../services/websocket_service.dart';
 import '../widgets/chat_bubble.dart';
@@ -144,11 +145,25 @@ class _ChatScreenState extends State<ChatScreen> {
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
       builder: (_) => _ReportSheet(
-        onSubmit: () {
-          Navigator.pop(context);
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Report submitted')),
-          );
+        onSubmit: (reasons, description) async {
+          try {
+            await ApiService().submitReport(
+              chatId: widget.chatId,
+              reportedId: widget.finderId,
+              reasons: reasons,
+              description: description,
+            );
+            if (!mounted) return;
+            Navigator.pop(context);
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Report submitted successfully')),
+            );
+          } catch (_) {
+            if (!mounted) return;
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Failed to submit report. Please try again.')),
+            );
+          }
         },
       ),
     );
@@ -539,7 +554,7 @@ class _ChatTopBar extends StatelessWidget {
                   behavior: HitTestBehavior.opaque,
                   child: const Padding(
                     padding: EdgeInsets.only(left: 12),
-                    child: Icon(Icons.more_vert, color: _kRed, size: 24),
+                    child: Icon(Icons.more_vert, color: Colors.white, size: 24),
                   ),
                 ),
               ],
@@ -625,7 +640,7 @@ class _ChatInputBar extends StatelessWidget {
 class _ReportSheet extends StatefulWidget {
   const _ReportSheet({required this.onSubmit});
 
-  final VoidCallback onSubmit;
+  final Future<void> Function(List<String>, String?) onSubmit;
 
   @override
   State<_ReportSheet> createState() => _ReportSheetState();
@@ -642,9 +657,17 @@ class _ReportSheetState extends State<_ReportSheet> {
   ];
 
   final Set<String> _selected = {};
+  final TextEditingController _descriptionController = TextEditingController();
+
+  @override
+  void dispose() {
+    _descriptionController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
+    final otherSelected = _selected.contains('Other');
     return Padding(
       padding: const EdgeInsets.fromLTRB(24, 16, 24, 32),
       child: Column(
@@ -687,6 +710,7 @@ class _ReportSheetState extends State<_ReportSheet> {
                   _selected.add(option);
                 } else {
                   _selected.remove(option);
+                  if (option == 'Other') _descriptionController.clear();
                 }
               }),
               title: Text(
@@ -701,6 +725,26 @@ class _ReportSheetState extends State<_ReportSheet> {
             );
           }),
 
+          if (otherSelected) ...[
+            const SizedBox(height: 8),
+            TextField(
+              controller: _descriptionController,
+              style: GoogleFonts.manrope(color: Colors.white, fontSize: 14),
+              maxLines: 3,
+              decoration: InputDecoration(
+                hintText: 'Describe the issue...',
+                hintStyle: GoogleFonts.manrope(color: _kHint, fontSize: 14),
+                filled: true,
+                fillColor: _kBorder,
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(10),
+                  borderSide: BorderSide.none,
+                ),
+                contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+              ),
+            ),
+          ],
+
           const SizedBox(height: 16),
 
           // Submit button
@@ -708,7 +752,16 @@ class _ReportSheetState extends State<_ReportSheet> {
             width: double.infinity,
             height: 52,
             child: ElevatedButton(
-              onPressed: _selected.isEmpty ? null : widget.onSubmit,
+              onPressed: _selected.isEmpty
+                  ? null
+                  : () {
+                      final desc = otherSelected
+                          ? (_descriptionController.text.trim().isEmpty
+                              ? null
+                              : _descriptionController.text.trim())
+                          : null;
+                      widget.onSubmit(_selected.toList(), desc);
+                    },
               style: ElevatedButton.styleFrom(
                 backgroundColor: _kRed,
                 disabledBackgroundColor: _kRed.withValues(alpha: 0.4),

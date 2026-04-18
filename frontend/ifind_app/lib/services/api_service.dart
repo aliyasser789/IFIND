@@ -387,6 +387,30 @@ class ApiService {
     }
   }
 
+  /// POST /reports/submit
+  /// Returns true on success, throws DioException on failure.
+  Future<bool> submitReport({
+    required String chatId,
+    required String reportedId,
+    required List<String> reasons,
+    String? description,
+  }) async {
+    final token = await StorageService().getToken();
+    if (token == null) throw Exception('Not authenticated');
+    final body = <String, dynamic>{
+      'chat_id': chatId,
+      'reported_id': reportedId,
+      'reasons': reasons,
+    };
+    if (description != null) body['description'] = description;
+    final response = await _dio.post(
+      '/reports/submit',
+      data: body,
+      options: Options(headers: {'Authorization': 'Bearer $token'}),
+    );
+    return response.statusCode == 201;
+  }
+
   /// POST /auth/register
   /// Returns {success: bool, message: String}
   Future<Map<String, dynamic>> register({

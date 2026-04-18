@@ -24,9 +24,11 @@ from app.routers.auth import router as auth_router, user_router
 from app.routers.ai import router as ai_router
 from app.routers.items import router as items_router
 from app.routers.chat import router as chat_router
+from app.routers.reports import router as reports_router
 
 # Import models so SQLAlchemy registers them before create_all is called
 import app.models.found_item  # noqa: F401
+import app.models.report  # noqa: F401
 
 app = FastAPI(title="IFind API")
 
@@ -53,6 +55,7 @@ app.include_router(user_router)
 app.include_router(ai_router)
 app.include_router(items_router)
 app.include_router(chat_router)
+app.include_router(reports_router)
 
 @app.get("/ping")
 def ping():

@@ -5,13 +5,16 @@ from sqlalchemy.orm import Session
 from app.DB_handeling.engine import get_db
 from app.models.user import User
 from app.services.auth_service import (
+    change_user_password,
     confirm_verification_code,
     create_access_token,
     get_current_user,
+    get_user_profile,
     register_user,
     reset_password,
     send_reset_code,
     send_verification_code,
+    update_user_profile,
     verify_reset_code,
 )
 from app.services.id_verify_service import verify_id_card
@@ -197,3 +200,52 @@ def get_me(current_user: User = Depends(get_current_user)):
         "username": current_user.username,
         "full_name": current_user.full_name,
     }
+
+
+@user_router.get("/profile", status_code=status.HTTP_200_OK)
+def get_profile(current_user: User = Depends(get_current_user)):
+    return get_user_profile(current_user)
+
+
+class UpdateProfileRequest(BaseModel):
+    full_name: str | None = None
+    username: str | None = None
+
+
+@user_router.put("/update", status_code=status.HTTP_200_OK)
+def update_profile(
+    body: UpdateProfileRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    try:
+        return update_user_profile(
+            db=db,
+            user=current_user,
+            full_name=body.full_name,
+            username=body.username,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+
+
+class ChangePasswordRequest(BaseModel):
+    current_password: str
+    new_password: str
+
+
+@user_router.post("/change-password", status_code=status.HTTP_200_OK)
+def change_password(
+    body: ChangePasswordRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    try:
+        return change_user_password(
+            db=db,
+            user=current_user,
+            current_password=body.current_password,
+            new_password=body.new_password,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))

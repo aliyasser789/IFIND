@@ -411,6 +411,102 @@ class ApiService {
     return response.statusCode == 201;
   }
 
+  /// GET /user/profile — requires JWT
+  /// Returns {success: bool, full_name: String?, username: String?}
+  Future<Map<String, dynamic>> getUserProfile() async {
+    final token = await StorageService().getToken();
+    if (token == null) {
+      return {'success': false, 'error': 'Not authenticated.'};
+    }
+    try {
+      final response = await _dio.get(
+        '/user/profile',
+        options: Options(headers: {'Authorization': 'Bearer $token'}),
+      );
+      final raw = response.data;
+      final data =
+          (raw is String ? jsonDecode(raw) : raw) as Map<String, dynamic>;
+      return {'success': true, ...data};
+    } on DioException catch (e) {
+      if (e.response != null) {
+        final data = e.response!.data;
+        final detail = (data is Map)
+            ? (data['detail'] ?? 'Failed to load profile')
+            : 'Failed to load profile';
+        return {'success': false, 'error': detail.toString()};
+      }
+      return {'success': false, 'error': 'Cannot connect to server.'};
+    }
+  }
+
+  /// PUT /user/update — requires JWT
+  /// Returns {success: bool, message: String}
+  Future<Map<String, dynamic>> updateUserProfile({
+    String? fullName,
+    String? username,
+  }) async {
+    final token = await StorageService().getToken();
+    if (token == null) {
+      return {'success': false, 'message': 'Not authenticated.'};
+    }
+    final body = <String, dynamic>{};
+    if (fullName != null) body['full_name'] = fullName;
+    if (username != null) body['username'] = username;
+    try {
+      final response = await _dio.put(
+        '/user/update',
+        data: body,
+        options: Options(headers: {'Authorization': 'Bearer $token'}),
+      );
+      final data = response.data as Map<String, dynamic>;
+      final message = data['message'] as String? ?? 'Updated successfully.';
+      return {'success': true, 'message': message};
+    } on DioException catch (e) {
+      if (e.response != null) {
+        final data = e.response!.data;
+        final detail = (data is Map)
+            ? (data['detail'] ?? 'Update failed')
+            : 'Update failed';
+        return {'success': false, 'message': detail.toString()};
+      }
+      return {'success': false, 'message': 'Cannot connect to server.'};
+    }
+  }
+
+  /// POST /user/change-password — requires JWT
+  /// Returns {success: bool, message: String}
+  Future<Map<String, dynamic>> changePassword({
+    required String currentPassword,
+    required String newPassword,
+  }) async {
+    final token = await StorageService().getToken();
+    if (token == null) {
+      return {'success': false, 'message': 'Not authenticated.'};
+    }
+    try {
+      final response = await _dio.post(
+        '/user/change-password',
+        data: {
+          'current_password': currentPassword,
+          'new_password': newPassword,
+        },
+        options: Options(headers: {'Authorization': 'Bearer $token'}),
+      );
+      final data = response.data as Map<String, dynamic>;
+      final message = data['message'] as String? ?? 'Password changed.';
+      return {'success': true, 'message': message};
+    } on DioException catch (e) {
+      if (e.response != null) {
+        final data = e.response!.data;
+        final detail = (data is Map)
+            ? (data['detail'] ?? 'Password change failed')
+            : 'Password change failed';
+        return {'success': false, 'message': detail.toString()};
+      }
+      return {'success': false, 'message': 'Cannot connect to server.'};
+    }
+  }
+
   /// POST /auth/register
   /// Returns {success: bool, message: String}
   Future<Map<String, dynamic>> register({

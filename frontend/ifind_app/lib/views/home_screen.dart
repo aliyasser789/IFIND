@@ -6,14 +6,11 @@ import 'package:google_fonts/google_fonts.dart';
 
 import '../controllers/chat_controller.dart';
 import '../services/api_service.dart';
-import '../services/badge_service.dart';
 import '../services/storage_service.dart';
 import 'auth_screen.dart';
-import 'chat_list_screen.dart';
 import 'chat_screen.dart';
 import 'found_screen.dart';
 import 'lost_screen.dart';
-import 'settings_screen.dart';
 
 // ── Design tokens (identical palette to auth_screen.dart / splash_screen.dart) ─
 const _kBaseUrl = String.fromEnvironment(
@@ -30,7 +27,7 @@ const _kSlate800 = Color(0xFF1E293B);
 const _kCardBg = Color(0xFF1E2A3A);
 
 // ─────────────────────────────────────────────────────────────────────────────
-// HomeScreen
+// HomeScreen — body content for the Home tab inside MainShell
 // ─────────────────────────────────────────────────────────────────────────────
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -43,34 +40,11 @@ class _HomeScreenState extends State<HomeScreen> {
   String _displayName = '';
   bool _loading = true;
   List<Map<String, dynamic>> _recentItems = [];
-  int _unreadCount = 0;
-  bool _didInit = false;
 
   @override
   void initState() {
     super.initState();
     _init();
-  }
-
-  @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    // Skip the first call (initState already kicked off _init).
-    // On subsequent calls (e.g. returning from a pushed route), refresh badge.
-    if (_didInit) _refreshBadge();
-  }
-
-  /// Lightweight refresh — only updates the unread badge count.
-  Future<void> _refreshBadge() async {
-    final chats = await ChatController().getUserChats();
-    if (!mounted) return;
-    final allChatIds = chats
-        .map((c) => (c['chat_id'] ?? c['id'])?.toString() ?? '')
-        .where((id) => id.isNotEmpty)
-        .toList();
-    final unread = await BadgeService.getUnseenCount(allChatIds);
-    if (!mounted) return;
-    setState(() => _unreadCount = unread);
   }
 
   Future<void> _init() async {
@@ -93,33 +67,12 @@ class _HomeScreenState extends State<HomeScreen> {
     final items = await ApiService().getRecentItems();
     if (!mounted) return;
 
-    final chats = await ChatController().getUserChats();
-    if (!mounted) return;
-    final allChatIds = chats
-        .map((c) => (c['chat_id'] ?? c['id'])?.toString() ?? '')
-        .where((id) => id.isNotEmpty)
-        .toList();
-    final unread = await BadgeService.getUnseenCount(allChatIds);
-    if (!mounted) return;
-
     setState(() {
       _displayName = name;
       _recentItems = items.take(5).toList();
-      _unreadCount = unread;
       _loading = false;
-      _didInit = true;
     });
   }
-
-  void _goToChat() => Navigator.push(
-        context,
-        MaterialPageRoute(builder: (_) => const ChatListScreen()),
-      );
-
-  void _goToSettings() => Navigator.push(
-        context,
-        MaterialPageRoute(builder: (_) => const SettingsScreen()),
-      );
 
   @override
   Widget build(BuildContext context) {
@@ -204,13 +157,6 @@ class _HomeScreenState extends State<HomeScreen> {
                   ),
                 ),
               ),
-
-              // Fixed bottom nav
-              _BottomNavBar(
-                onChatTap: _goToChat,
-                onSettingsTap: _goToSettings,
-                unreadCount: _unreadCount,
-              ),
             ],
           ),
         ],
@@ -220,9 +166,6 @@ class _HomeScreenState extends State<HomeScreen> {
 }
 
 // ─── Top Header ───────────────────────────────────────────────────────────────
-// Compact nav bar — matches the iFind visual identity from auth_screen.dart:
-// same location_on icon, same #135bec→#8b5cf6 gradient, same RichText style,
-// same gradient underline.
 class _HomeHeader extends StatelessWidget {
   const _HomeHeader();
 
@@ -249,7 +192,7 @@ class _HomeHeader extends StatelessWidget {
                 padding: const EdgeInsets.symmetric(horizontal: 24),
                 child: Row(
                   children: [
-                    // ── Pin logo (matches _SmallLogoCard in auth_screen.dart) ─
+                    // ── Pin logo ──────────────────────────────────────────
                     Stack(
                       alignment: Alignment.center,
                       children: [
@@ -364,8 +307,6 @@ class _HomeHeader extends StatelessWidget {
                       mainAxisSize: MainAxisSize.min,
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        // Matches auth_screen.dart _LogoSection: RichText
-                        // i=white / Find=_kPrimary, Manrope extrabold
                         RichText(
                           text: TextSpan(
                             style: GoogleFonts.manrope(
@@ -387,7 +328,6 @@ class _HomeHeader extends StatelessWidget {
                           ),
                         ),
                         const SizedBox(height: 5),
-                        // Gradient underline — matches auth_screen.dart
                         Container(
                           width: 32,
                           height: 3,
@@ -1138,152 +1078,6 @@ class _HomeItemCard extends StatelessWidget {
             ),
           ),
         ],
-      ),
-    );
-  }
-}
-
-// ─── Bottom Nav Bar ───────────────────────────────────────────────────────────
-class _BottomNavBar extends StatelessWidget {
-  const _BottomNavBar({
-    required this.onChatTap,
-    required this.onSettingsTap,
-    required this.unreadCount,
-  });
-
-  final VoidCallback onChatTap;
-  final VoidCallback onSettingsTap;
-  final int unreadCount;
-
-  @override
-  Widget build(BuildContext context) {
-    return ClipRRect(
-      borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
-      child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
-        child: Container(
-          decoration: BoxDecoration(
-            color: _kSlate900.withValues(alpha: 0.80),
-            border: Border(
-              top: BorderSide(
-                color: Colors.white.withValues(alpha: 0.10),
-                width: 1,
-              ),
-            ),
-          ),
-          child: SafeArea(
-            top: false,
-            child: SizedBox(
-              height: 64,
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceAround,
-                children: [
-                  // Home — active
-                  const _NavItem(
-                    icon: Icons.home,
-                    label: 'HOME',
-                    isActive: true,
-                  ),
-                  // Chat
-                  _NavItem(
-                    icon: Icons.chat_bubble_outline,
-                    label: 'CHAT',
-                    isActive: false,
-                    onTap: onChatTap,
-                    unreadCount: unreadCount,
-                  ),
-                  // Settings
-                  _NavItem(
-                    icon: Icons.settings_outlined,
-                    label: 'SETTINGS',
-                    isActive: false,
-                    onTap: onSettingsTap,
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _NavItem extends StatelessWidget {
-  const _NavItem({
-    required this.icon,
-    required this.label,
-    required this.isActive,
-    this.onTap,
-    this.unreadCount = 0,
-  });
-
-  final IconData icon;
-  final String label;
-  final bool isActive;
-  final VoidCallback? onTap;
-  final int unreadCount;
-
-  @override
-  Widget build(BuildContext context) {
-    final color = isActive ? _kPrimary : _kSlate400;
-
-    return GestureDetector(
-      onTap: onTap,
-      behavior: HitTestBehavior.opaque,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        decoration: isActive
-            ? BoxDecoration(
-                color: _kPrimary.withValues(alpha: 0.10),
-                borderRadius: BorderRadius.circular(12),
-              )
-            : null,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            unreadCount > 0
-                ? Stack(
-                    clipBehavior: Clip.none,
-                    children: [
-                      Icon(icon, color: color, size: 24),
-                      Positioned(
-                        top: -4,
-                        right: -6,
-                        child: Container(
-                          width: 16,
-                          height: 16,
-                          decoration: const BoxDecoration(
-                            color: Color(0xFFE24B4A),
-                            shape: BoxShape.circle,
-                          ),
-                          child: Center(
-                            child: Text(
-                              '$unreadCount',
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 10,
-                                fontWeight: FontWeight.w700,
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-                    ],
-                  )
-                : Icon(icon, color: color, size: 24),
-            const SizedBox(height: 4),
-            Text(
-              label,
-              style: GoogleFonts.manrope(
-                color: color,
-                fontSize: 10,
-                fontWeight: FontWeight.w600,
-                letterSpacing: 0.8,
-              ),
-            ),
-          ],
-        ),
       ),
     );
   }

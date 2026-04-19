@@ -6,8 +6,8 @@ import 'package:google_fonts/google_fonts.dart';
 import '../services/api_service.dart';
 import '../services/storage_service.dart';
 import 'forgot_password_screen.dart';
-import 'home_screen.dart';
 import 'id_verification_screen.dart';
+import 'main_shell.dart';
 import 'register_screen.dart';
 
 // ── Design tokens (shared palette from splash_screen.dart) ──────────────────
@@ -89,7 +89,7 @@ class _AuthScreenState extends State<AuthScreen> {
         context,
         MaterialPageRoute(
           builder: (_) => idVerified
-              ? const HomeScreen()
+              ? const MainShell()
               : IdVerificationScreen(email: email),
         ),
         (_) => false,

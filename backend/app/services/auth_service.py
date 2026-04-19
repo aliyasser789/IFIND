@@ -146,6 +146,44 @@ def reset_password(db: Session, email: str, new_password: str, confirm_password:
     return {"message": "Password reset successfully"}
 
 
+def get_user_profile(user: User) -> dict:
+    return {"full_name": user.full_name, "username": user.username}
+
+
+def update_user_profile(
+    db: Session,
+    user: User,
+    full_name: str | None,
+    username: str | None,
+) -> dict:
+    if username and username != user.username:
+        conflict = db.query(User).filter(User.username == username).first()
+        if conflict:
+            raise ValueError("Username already taken")
+        user.username = username
+
+    if full_name is not None:
+        user.full_name = full_name
+
+    db.commit()
+    db.refresh(user)
+    return {"message": "Profile updated successfully", "full_name": user.full_name, "username": user.username}
+
+
+def change_user_password(
+    db: Session,
+    user: User,
+    current_password: str,
+    new_password: str,
+) -> dict:
+    if not verify_password(current_password, user.password_hash):
+        raise ValueError("Current password is incorrect")
+
+    user.password_hash = hash_password(new_password)
+    db.commit()
+    return {"message": "Password changed successfully"}
+
+
 def get_current_user(
     token: str = Depends(_oauth2_scheme),
     db: Session = Depends(get_db),

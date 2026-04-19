@@ -1,13 +1,9 @@
-import 'dart:ui';
-
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import '../controllers/chat_controller.dart';
 import '../services/badge_service.dart';
 import 'chat_screen.dart';
-import 'home_screen.dart';
-import 'settings_screen.dart';
 
 // ── Base URL (injected at build time via --dart-define=BASE_URL=...) ─────────
 const _kBaseUrl = String.fromEnvironment('BASE_URL', defaultValue: '');
@@ -20,10 +16,9 @@ const _kTopBar = Color(0xFF13192A);
 const _kBorder = Color(0xFF1E2438);
 const _kHint = Color(0xFF6B7280);
 const _kSlate400 = Color(0xFF94A3B8);
-const _kSlate900 = Color(0xFF0F172A);
 
 // ─────────────────────────────────────────────────────────────────────────────
-// ChatListScreen
+// ChatListScreen — Chat tab body, rendered inside MainShell's IndexedStack
 // ─────────────────────────────────────────────────────────────────────────────
 class ChatListScreen extends StatefulWidget {
   const ChatListScreen({super.key});
@@ -37,7 +32,6 @@ class _ChatListScreenState extends State<ChatListScreen> {
   List<Map<String, dynamic>> _chats = [];
   bool _isLoading = true;
   Set<String> _seenIds = {};
-  int _unreadCount = 0;
 
   @override
   void initState() {
@@ -55,17 +49,11 @@ class _ChatListScreenState extends State<ChatListScreen> {
       return bDate.compareTo(aDate);
     });
     final seenIds = await BadgeService.getSeenChatIds();
-    final allIds = chats
-        .map((c) => (c['chat_id'] ?? c['id'])?.toString() ?? '')
-        .where((id) => id.isNotEmpty)
-        .toList();
-    final unread = allIds.where((id) => !seenIds.contains(id)).length;
     if (mounted) {
       setState(() {
         _chats = chats;
         _isLoading = false;
         _seenIds = seenIds;
-        _unreadCount = unread;
       });
     }
   }
@@ -197,19 +185,6 @@ class _ChatListScreenState extends State<ChatListScreen> {
                           );
                         },
                       ),
-          ),
-
-          // ── Bottom nav ───────────────────────────────────────────────
-          _BottomNavBar(
-            unreadCount: _unreadCount,
-            onHomeTap: () => Navigator.pushReplacement(
-              context,
-              MaterialPageRoute(builder: (_) => const HomeScreen()),
-            ),
-            onSettingsTap: () => Navigator.pushReplacement(
-              context,
-              MaterialPageRoute(builder: (_) => const SettingsScreen()),
-            ),
           ),
         ],
       ),
@@ -405,146 +380,6 @@ class _ChatRow extends StatelessWidget {
               ),
             ),
         ],
-      ),
-    );
-  }
-}
-
-// ─── Bottom Nav Bar ──────────────────────────────────────────────────────────
-class _BottomNavBar extends StatelessWidget {
-  const _BottomNavBar({
-    required this.unreadCount,
-    required this.onHomeTap,
-    required this.onSettingsTap,
-  });
-
-  final int unreadCount;
-  final VoidCallback onHomeTap;
-  final VoidCallback onSettingsTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return ClipRRect(
-      borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
-      child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
-        child: Container(
-          decoration: BoxDecoration(
-            color: _kSlate900.withValues(alpha: 0.80),
-            border: Border(
-              top: BorderSide(
-                color: Colors.white.withValues(alpha: 0.10),
-                width: 1,
-              ),
-            ),
-          ),
-          child: SafeArea(
-            top: false,
-            child: SizedBox(
-              height: 64,
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceAround,
-                children: [
-                  _NavItem(
-                    icon: Icons.home,
-                    label: 'HOME',
-                    isActive: false,
-                    onTap: onHomeTap,
-                  ),
-                  _NavItem(
-                    icon: Icons.chat_bubble_outline,
-                    label: 'CHAT',
-                    isActive: true,
-                    badgeCount: unreadCount,
-                  ),
-                  _NavItem(
-                    icon: Icons.settings_outlined,
-                    label: 'SETTINGS',
-                    isActive: false,
-                    onTap: onSettingsTap,
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _NavItem extends StatelessWidget {
-  const _NavItem({
-    required this.icon,
-    required this.label,
-    required this.isActive,
-    this.onTap,
-    this.badgeCount = 0,
-  });
-
-  final IconData icon;
-  final String label;
-  final bool isActive;
-  final VoidCallback? onTap;
-  final int badgeCount;
-
-  @override
-  Widget build(BuildContext context) {
-    final color = isActive ? _kPrimary : _kSlate400;
-
-    return GestureDetector(
-      onTap: onTap,
-      behavior: HitTestBehavior.opaque,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        decoration: isActive
-            ? BoxDecoration(
-                color: _kPrimary.withValues(alpha: 0.10),
-                borderRadius: BorderRadius.circular(12),
-              )
-            : null,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Stack(
-              clipBehavior: Clip.none,
-              children: [
-                Icon(icon, color: color, size: 24),
-                if (badgeCount > 0)
-                  Positioned(
-                    top: -4,
-                    right: -8,
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 4, vertical: 1),
-                      decoration: BoxDecoration(
-                        color: _kPrimary,
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Text(
-                        '$badgeCount',
-                        style: GoogleFonts.manrope(
-                          color: Colors.white,
-                          fontSize: 9,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                    ),
-                  ),
-              ],
-            ),
-            const SizedBox(height: 4),
-            Text(
-              label,
-              style: GoogleFonts.manrope(
-                color: color,
-                fontSize: 10,
-                fontWeight: FontWeight.w600,
-                letterSpacing: 0.8,
-              ),
-            ),
-          ],
-        ),
       ),
     );
   }

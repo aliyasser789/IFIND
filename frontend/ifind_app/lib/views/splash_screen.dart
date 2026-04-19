@@ -6,8 +6,8 @@ import 'package:google_fonts/google_fonts.dart';
 
 import '../services/storage_service.dart';
 import 'auth_screen.dart';
-import 'home_screen.dart';
 import 'id_verification_screen.dart';
+import 'main_shell.dart';
 
 // ─── Design tokens ──────────────────────────────────────────────────────────
 const _kPrimary      = Color(0xFF135BEC);
@@ -104,7 +104,7 @@ class _SplashScreenState extends State<SplashScreen>
     if (idVerified) {
       Navigator.pushReplacement(
         context,
-        MaterialPageRoute(builder: (_) => const HomeScreen()),
+        MaterialPageRoute(builder: (_) => const MainShell()),
       );
     } else {
       final email = await StorageService().getUserEmail() ?? '';

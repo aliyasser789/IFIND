@@ -9,7 +9,7 @@ import 'package:ifind_app/services/storage_service.dart';
 // Use the VS Code launch configs in .vscode/launch.json to switch easily.
 const String baseUrl = String.fromEnvironment(
   'BASE_URL',
-  defaultValue: 'http://10.0.2.2:8000',
+  defaultValue: 'http://172.20.10.2:8000',
 );
 
 class ApiService {
@@ -193,7 +193,13 @@ class ApiService {
         final data = e.response!.data;
         final detail =
             (data is Map) ? (data['detail'] ?? 'Login failed') : 'Login failed';
-        return {'success': false, 'message': detail.toString()};
+        final detailStr = detail.toString();
+        return {
+          'success': false,
+          'message': detailStr,
+          // Signals the UI to redirect to email verification instead of showing an error.
+          'email_not_verified': detailStr == 'Please verify your email first',
+        };
       }
       return {
         'success': false,

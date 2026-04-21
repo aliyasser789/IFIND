@@ -8,10 +8,7 @@ import '../controllers/chat_controller.dart';
 import '../services/api_service.dart';
 import '../services/badge_service.dart';
 import '../services/storage_service.dart';
-import 'chat_list_screen.dart';
 import 'chat_screen.dart';
-import 'home_screen.dart';
-import 'settings_screen.dart';
 
 // ── Design tokens ────────────────────────────────────────────────────────────
 const _kBaseUrl = String.fromEnvironment(
@@ -48,27 +45,11 @@ class _LostScreenState extends State<LostScreen> {
   List<Map<String, dynamic>> _searchResults = [];
   bool _isSearching = false;
   bool _hasSearched = false;
-  int _unreadCount = 0;
 
   @override
   void initState() {
     super.initState();
     _loadFilters();
-    _loadUnreadCount();
-  }
-
-  Future<void> _loadUnreadCount() async {
-    final chats = await ChatController().getUserChats();
-    if (!mounted) return;
-    final allChatIds = chats
-        .map((c) => (c['chat_id'] ?? c['id'])?.toString() ?? '')
-        .where((id) => id.isNotEmpty)
-        .toList();
-    final unread = await BadgeService.getUnseenCount(allChatIds);
-    if (!mounted) return;
-    setState(() {
-      _unreadCount = unread;
-    });
   }
 
   Future<void> _loadFilters() async {
@@ -185,22 +166,6 @@ class _LostScreenState extends State<LostScreen> {
                   ),
           ),
 
-          // ── Bottom nav ───────────────────────────────────────────────
-          _BottomNavBar(
-            unreadCount: _unreadCount,
-            onHomeTap: () => Navigator.pushReplacement(
-              context,
-              MaterialPageRoute(builder: (_) => const HomeScreen()),
-            ),
-            onChatTap: () => Navigator.pushReplacement(
-              context,
-              MaterialPageRoute(builder: (_) => const ChatListScreen()),
-            ),
-            onSettingsTap: () => Navigator.pushReplacement(
-              context,
-              MaterialPageRoute(builder: (_) => const SettingsScreen()),
-            ),
-          ),
         ],
       ),
     );
@@ -557,24 +522,43 @@ class _ItemCard extends StatelessWidget {
 
   final Map<String, dynamic> item;
 
-  String _buildPhotoUrl() {
-    try {
-      final photoList = item['photo_url'] as List<dynamic>;
-      if (photoList.isEmpty) return '';
-      final path = photoList[0] as String;
-      final filename = path.split('/').last;
-      final itemId = item['id'];
-      return '$_kBaseUrl/items/photos/$itemId/$filename';
-    } catch (_) {
-      return '';
+  List<String> _buildPhotoUrls() {
+    final raw = item['photo_url'];
+    List<dynamic> paths = [];
+    if (raw is List) {
+      paths = raw;
+    } else if (raw is String && raw.isNotEmpty) {
+      try {
+        final decoded = jsonDecode(raw);
+        if (decoded is List) {
+          paths = decoded;
+        } else {
+          paths = [raw];
+        }
+      } catch (_) {
+        paths = [raw];
+      }
     }
+    final itemId = item['id'];
+    return paths
+        .take(5)
+        .map((p) {
+          final path = p.toString();
+          if (path.isEmpty) return '';
+          final filename = path.split('/').last;
+          return '$_kBaseUrl/items/photos/$itemId/$filename';
+        })
+        .where((s) => s.isNotEmpty)
+        .toList();
   }
 
   String _formatDate() {
     final dateStr = item['created_at'] as String?;
     if (dateStr == null) return 'Unknown date';
     try {
-      final date = DateTime.parse(dateStr).toLocal();
+      final date = DateTime.parse(
+        dateStr.endsWith('Z') ? dateStr : '${dateStr}Z'
+      ).toLocal();
       final now = DateTime.now();
       final today = DateTime(now.year, now.month, now.day);
       final itemDay = DateTime(date.year, date.month, date.day);
@@ -613,6 +597,9 @@ class _ItemCard extends StatelessWidget {
     final chatId =
         await ChatController().startChat(itemId, finderId, currentUserId);
     if (chatId == null) return;
+    // The initiator is opening the chat themselves — mark it seen so they
+    // don't see a blue "NEW" sign on their own conversation.
+    await BadgeService.saveSeenChatId(chatId);
     if (!context.mounted) return;
 
     final features = item['features'];
@@ -623,7 +610,7 @@ class _ItemCard extends StatelessWidget {
     final district = (item['district'] as String?) ?? '';
     final foundDate = (item['created_at'] as String?) ?? '';
 
-    final itemPhoto = _buildPhotoUrl();
+    final itemPhoto = jsonEncode(_buildPhotoUrls());
     final itemCategory = item['category']?.toString() ?? '';
     final itemFeatures =
         (item['features'] is Map<String, dynamic>)
@@ -648,7 +635,6 @@ class _ItemCard extends StatelessWidget {
   }
 
   void _showModal(BuildContext context) {
-    final photoUrl = _buildPhotoUrl();
     final category = item['category'] as String? ?? 'Unknown';
     final features = item['features'];
     final district = item['district'] as String? ?? 'Unknown';
@@ -708,46 +694,13 @@ class _ItemCard extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      // Photo with category badge
+                      // Photo carousel with category badge
                       Stack(
                         children: [
-                          photoUrl.isNotEmpty
-                              ? Image.network(
-                                  photoUrl,
-                                  width: double.infinity,
-                                  height: 240,
-                                  fit: BoxFit.cover,
-                                  loadingBuilder: (c, child, prog) {
-                                    if (prog == null) return child;
-                                    return Container(
-                                      width: double.infinity,
-                                      height: 240,
-                                      color: _kSlate900,
-                                      child: const Center(
-                                        child: CircularProgressIndicator(
-                                            color: _kPrimary, strokeWidth: 2),
-                                      ),
-                                    );
-                                  },
-                                  errorBuilder: (c, e, s) => Container(
-                                    width: double.infinity,
-                                    height: 240,
-                                    color: _kSlate900,
-                                    child: const Icon(
-                                        Icons.image_not_supported_outlined,
-                                        color: _kSlate500,
-                                        size: 48),
-                                  ),
-                                )
-                              : Container(
-                                  width: double.infinity,
-                                  height: 240,
-                                  color: _kSlate900,
-                                  child: const Icon(
-                                      Icons.image_not_supported_outlined,
-                                      color: _kSlate500,
-                                      size: 48),
-                                ),
+                          _CardImageCarousel(
+                            urls: _buildPhotoUrls(),
+                            height: 240,
+                          ),
                           Positioned(
                             top: 12,
                             left: 12,
@@ -889,7 +842,6 @@ class _ItemCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final photoUrl = _buildPhotoUrl();
     final category = item['category'] as String? ?? 'Unknown';
     final features = item['features'];
     final description = (features is Map)
@@ -924,51 +876,7 @@ class _ItemCard extends StatelessWidget {
                 // Photo with category badge
                 Stack(
                   children: [
-                    ClipRRect(
-                      borderRadius:
-                          const BorderRadius.vertical(top: Radius.circular(20)),
-                      child: photoUrl.isNotEmpty
-                          ? Image.network(
-                              photoUrl,
-                              width: double.infinity,
-                              height: 180,
-                              fit: BoxFit.cover,
-                              loadingBuilder: (ctx, child, progress) {
-                                if (progress == null) return child;
-                                return Container(
-                                  width: double.infinity,
-                                  height: 180,
-                                  color: _kSlate900,
-                                  child: const Center(
-                                    child: CircularProgressIndicator(
-                                      color: _kPrimary,
-                                      strokeWidth: 2,
-                                    ),
-                                  ),
-                                );
-                              },
-                              errorBuilder: (ctx, error, stack) => Container(
-                                width: double.infinity,
-                                height: 180,
-                                color: _kSlate900,
-                                child: const Icon(
-                                  Icons.image_not_supported_outlined,
-                                  color: _kSlate500,
-                                  size: 40,
-                                ),
-                              ),
-                            )
-                          : Container(
-                              width: double.infinity,
-                              height: 180,
-                              color: _kSlate900,
-                              child: const Icon(
-                                Icons.image_not_supported_outlined,
-                                color: _kSlate500,
-                                size: 40,
-                              ),
-                            ),
-                    ),
+                    _CardImageCarousel(urls: _buildPhotoUrls()),
                     // Category badge — top-left overlay
                     Positioned(
                       top: 12,
@@ -1074,6 +982,114 @@ class _ItemCard extends StatelessWidget {
   }
 }
 
+// ─── Card Image Carousel ──────────────────────────────────────────────────────
+class _CardImageCarousel extends StatefulWidget {
+  const _CardImageCarousel({required this.urls, this.height = 180});
+  final List<String> urls;
+  final double height;
+
+  @override
+  State<_CardImageCarousel> createState() => _CardImageCarouselState();
+}
+
+class _CardImageCarouselState extends State<_CardImageCarousel> {
+  late final PageController _pageCtrl;
+  int _current = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _pageCtrl = PageController();
+  }
+
+  @override
+  void dispose() {
+    _pageCtrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (widget.urls.isEmpty) {
+      return ClipRRect(
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+        child: Container(
+          width: double.infinity,
+          height: widget.height,
+          color: _kSlate900,
+          child: const Icon(Icons.image_not_supported_outlined,
+              color: _kSlate500, size: 40),
+        ),
+      );
+    }
+
+    return ClipRRect(
+      borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+      child: Stack(
+        children: [
+          SizedBox(
+            height: widget.height,
+            child: PageView.builder(
+              controller: _pageCtrl,
+              itemCount: widget.urls.length,
+              onPageChanged: (i) => setState(() => _current = i),
+              itemBuilder: (_, i) => Image.network(
+                widget.urls[i],
+                width: double.infinity,
+                height: widget.height,
+                fit: BoxFit.cover,
+                loadingBuilder: (c, child, prog) {
+                  if (prog == null) return child;
+                  return Container(
+                    width: double.infinity,
+                    height: widget.height,
+                    color: _kSlate900,
+                    child: const Center(
+                      child: CircularProgressIndicator(
+                          color: _kPrimary, strokeWidth: 2),
+                    ),
+                  );
+                },
+                errorBuilder: (c, e, s) => Container(
+                  width: double.infinity,
+                  height: widget.height,
+                  color: _kSlate900,
+                  child: const Icon(Icons.image_not_supported_outlined,
+                      color: _kSlate500, size: 40),
+                ),
+              ),
+            ),
+          ),
+          if (widget.urls.length > 1)
+            Positioned(
+              bottom: 8,
+              left: 0,
+              right: 0,
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: List.generate(widget.urls.length, (i) {
+                  final active = i == _current;
+                  return AnimatedContainer(
+                    duration: const Duration(milliseconds: 200),
+                    margin: const EdgeInsets.symmetric(horizontal: 3),
+                    width: active ? 16 : 6,
+                    height: 6,
+                    decoration: BoxDecoration(
+                      color: active
+                          ? _kPrimary
+                          : Colors.white.withValues(alpha: 0.5),
+                      borderRadius: BorderRadius.circular(3),
+                    ),
+                  );
+                }),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
 // ─── Header with back button + iFind logo ────────────────────────────────────
 class _LostHeader extends StatelessWidget {
   const _LostHeader();
@@ -1099,167 +1115,7 @@ class _LostHeader extends StatelessWidget {
               height: 64,
               child: Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 24),
-                child: Row(
-                  children: [
-                    // ── Back button ──────────────────────────────────────
-                    GestureDetector(
-                      onTap: () => Navigator.pop(context),
-                      behavior: HitTestBehavior.opaque,
-                      child: const Padding(
-                        padding: EdgeInsets.only(right: 8),
-                        child: Icon(
-                          Icons.arrow_back_ios,
-                          color: Colors.white,
-                          size: 20,
-                        ),
-                      ),
-                    ),
-
-                    // ── Pin logo (same as home_screen.dart _HomeHeader) ─
-                    Stack(
-                      alignment: Alignment.center,
-                      children: [
-                        ImageFiltered(
-                          imageFilter: ImageFilter.blur(sigmaX: 6, sigmaY: 6),
-                          child: Container(
-                            width: 54,
-                            height: 54,
-                            decoration: BoxDecoration(
-                              borderRadius: BorderRadius.circular(16),
-                              gradient: LinearGradient(
-                                begin: Alignment.bottomLeft,
-                                end: Alignment.topRight,
-                                colors: [
-                                  _kPrimary.withValues(alpha: 0.40),
-                                  _kAccentPurple.withValues(alpha: 0.40),
-                                ],
-                              ),
-                            ),
-                          ),
-                        ),
-                        Container(
-                          width: 40,
-                          height: 40,
-                          decoration: BoxDecoration(
-                            borderRadius: BorderRadius.circular(12),
-                            color: _kSlate900,
-                            border: Border.all(
-                              color: Colors.white.withValues(alpha: 0.10),
-                              width: 1,
-                            ),
-                            boxShadow: [
-                              BoxShadow(
-                                color: Colors.black.withValues(alpha: 0.40),
-                                blurRadius: 24,
-                                offset: const Offset(0, 12),
-                              ),
-                            ],
-                          ),
-                          child: ClipRRect(
-                            borderRadius: BorderRadius.circular(12),
-                            child: Stack(
-                              alignment: Alignment.center,
-                              children: [
-                                Positioned.fill(
-                                  child: DecoratedBox(
-                                    decoration: BoxDecoration(
-                                      gradient: LinearGradient(
-                                        begin: Alignment.topLeft,
-                                        end: Alignment.bottomRight,
-                                        colors: [
-                                          _kPrimary.withValues(alpha: 0.20),
-                                          Colors.transparent,
-                                          _kAccentPurple.withValues(
-                                              alpha: 0.20),
-                                        ],
-                                        stops: const [0.0, 0.50, 1.0],
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                                ImageFiltered(
-                                  imageFilter:
-                                      ImageFilter.blur(sigmaX: 3, sigmaY: 3),
-                                  child: Icon(
-                                    Icons.radio_button_checked,
-                                    size: 27,
-                                    color: _kPrimary.withValues(alpha: 0.40),
-                                  ),
-                                ),
-                                ShaderMask(
-                                  blendMode: BlendMode.srcATop,
-                                  shaderCallback: (bounds) =>
-                                      const RadialGradient(
-                                    center: Alignment(0, -0.3),
-                                    radius: 0.65,
-                                    colors: [
-                                      Color(0xFFFFFFFF),
-                                      Color(0xFFD0DEFF),
-                                    ],
-                                  ).createShader(bounds),
-                                  child: Icon(
-                                    Icons.location_on,
-                                    size: 22,
-                                    color: Colors.white,
-                                    shadows: [
-                                      Shadow(
-                                        color: Colors.white
-                                            .withValues(alpha: 0.30),
-                                        blurRadius: 12,
-                                        offset: Offset.zero,
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-
-                    const SizedBox(width: 12),
-
-                    // ── "iFind" text + gradient underline ────────────────
-                    Column(
-                      mainAxisSize: MainAxisSize.min,
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        RichText(
-                          text: TextSpan(
-                            style: GoogleFonts.manrope(
-                              fontSize: 24,
-                              fontWeight: FontWeight.w800,
-                              letterSpacing: -0.5,
-                              height: 1.0,
-                            ),
-                            children: const [
-                              TextSpan(
-                                text: 'i',
-                                style: TextStyle(color: Colors.white),
-                              ),
-                              TextSpan(
-                                text: 'Find',
-                                style: TextStyle(color: _kPrimary),
-                              ),
-                            ],
-                          ),
-                        ),
-                        const SizedBox(height: 5),
-                        Container(
-                          width: 32,
-                          height: 3,
-                          decoration: BoxDecoration(
-                            borderRadius: BorderRadius.circular(999),
-                            gradient: const LinearGradient(
-                              colors: [_kPrimary, _kAccentPurple],
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
+                child: const Row(children: []),
               ),
             ),
           ),
@@ -1269,121 +1125,3 @@ class _LostHeader extends StatelessWidget {
   }
 }
 
-// ─── Bottom Nav Bar ──────────────────────────────────────────────────────────
-class _BottomNavBar extends StatelessWidget {
-  const _BottomNavBar({
-    required this.unreadCount,
-    required this.onHomeTap,
-    required this.onChatTap,
-    required this.onSettingsTap,
-  });
-
-  final int unreadCount;
-  final VoidCallback onHomeTap;
-  final VoidCallback onChatTap;
-  final VoidCallback onSettingsTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return ClipRRect(
-      borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
-      child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
-        child: Container(
-          decoration: BoxDecoration(
-            color: _kSlate900.withValues(alpha: 0.80),
-            border: Border(
-              top: BorderSide(
-                color: Colors.white.withValues(alpha: 0.10),
-                width: 1,
-              ),
-            ),
-          ),
-          child: SafeArea(
-            top: false,
-            child: SizedBox(
-              height: 64,
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceAround,
-                children: [
-                  _NavItem(
-                    icon: Icons.home,
-                    label: 'HOME',
-                    isActive: false,
-                    onTap: onHomeTap,
-                  ),
-                  const _NavItem(
-                    icon: Icons.search,
-                    label: 'I LOST',
-                    isActive: true,
-                  ),
-                  _NavItem(
-                    icon: Icons.chat_bubble_outline,
-                    label: 'CHAT',
-                    isActive: false,
-                    onTap: onChatTap,
-                  ),
-                  _NavItem(
-                    icon: Icons.settings_outlined,
-                    label: 'SETTINGS',
-                    isActive: false,
-                    onTap: onSettingsTap,
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _NavItem extends StatelessWidget {
-  const _NavItem({
-    required this.icon,
-    required this.label,
-    required this.isActive,
-    this.onTap,
-  });
-
-  final IconData icon;
-  final String label;
-  final bool isActive;
-  final VoidCallback? onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final color = isActive ? _kPrimary : _kSlate400;
-
-    return GestureDetector(
-      onTap: onTap,
-      behavior: HitTestBehavior.opaque,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        decoration: isActive
-            ? BoxDecoration(
-                color: _kPrimary.withValues(alpha: 0.10),
-                borderRadius: BorderRadius.circular(12),
-              )
-            : null,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(icon, color: color, size: 24),
-            const SizedBox(height: 4),
-            Text(
-              label,
-              style: GoogleFonts.manrope(
-                color: color,
-                fontSize: 10,
-                fontWeight: FontWeight.w600,
-                letterSpacing: 0.8,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}

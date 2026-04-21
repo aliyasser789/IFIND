@@ -81,6 +81,7 @@ class _IdVerificationScreenState extends State<IdVerificationScreen> {
       final token = result['access_token'] as String?;
       if (token != null) {
         await StorageService().saveToken(token);
+        await StorageService().saveIdVerified(true);
       }
       await _apiService.uploadIdBack(imageFile: _backImage!);
       if (!mounted) return;

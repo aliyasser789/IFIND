@@ -55,7 +55,7 @@ def list_chats(
 ):
     chats = get_user_chats(db=db, user_id=current_user.id)
     result = []
-    for chat in chats:
+    for chat, other_user_username, message_count in chats:
         item = db.query(FoundItem).filter(FoundItem.id == chat.item_id).first()
 
         item_name = "Unknown Item"
@@ -91,6 +91,9 @@ def list_chats(
                 "item_photo_url": item_photo_url,
                 "district": district,
                 "item_features": item.features if item else {},
+                "item_created_at": item.created_at.isoformat() if item and item.created_at else None,
+                "other_user_username": other_user_username,
+                "message_count": message_count,
             }
         )
     return result

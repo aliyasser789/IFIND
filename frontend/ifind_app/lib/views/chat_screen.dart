@@ -6,6 +6,7 @@ import 'package:google_fonts/google_fonts.dart';
 
 import '../controllers/chat_controller.dart';
 import '../services/api_service.dart';
+import '../services/badge_service.dart';
 import '../services/storage_service.dart';
 import '../services/websocket_service.dart';
 import '../widgets/chat_bubble.dart';
@@ -23,6 +24,22 @@ const _kSlate400 = Color(0xFF94A3B8);
 const _kSlate500 = Color(0xFF64748B);
 const _kSlate900 = Color(0xFF0F172A);
 
+// Formats an ISO timestamp as M/D/YYYY with no leading zeros.
+String _formatMDY(String raw) {
+  if (raw.isEmpty) return '';
+  try {
+    final dt = DateTime.parse(raw).toLocal();
+    return '${dt.month}/${dt.day}/${dt.year}';
+  } catch (_) {
+    return '';
+  }
+}
+
+String _buildSubtitle(String district, String foundDate) {
+  final d = _formatMDY(foundDate);
+  return d.isNotEmpty ? '$district · $d' : district;
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // ChatScreen
 // ─────────────────────────────────────────────────────────────────────────────
@@ -37,6 +54,7 @@ class ChatScreen extends StatefulWidget {
     this.itemPhoto = '',
     this.itemCategory = '',
     this.itemFeatures = const {},
+    this.otherUsername = '',
   });
 
   final String chatId;
@@ -47,6 +65,7 @@ class ChatScreen extends StatefulWidget {
   final String itemPhoto;
   final String itemCategory;
   final Map<String, dynamic> itemFeatures;
+  final String otherUsername;
 
   @override
   State<ChatScreen> createState() => _ChatScreenState();
@@ -72,8 +91,9 @@ class _ChatScreenState extends State<ChatScreen> {
   // ── Initialise: JWT → history → WebSocket ────────────────────────────────
   Future<void> _init() async {
     // Compute other user label immediately (no async needed)
-    _otherUserLabel =
-        'User ${widget.finderId.length >= 4 ? widget.finderId.substring(0, 4) : widget.finderId}';
+    _otherUserLabel = widget.otherUsername.isNotEmpty
+        ? widget.otherUsername
+        : 'User ${widget.finderId.length >= 4 ? widget.finderId.substring(0, 4) : widget.finderId}';
 
     final token = await StorageService().getToken();
     if (token == null) return;
@@ -89,6 +109,8 @@ class _ChatScreenState extends State<ChatScreen> {
     if (!mounted) return;
     setState(() => _messages.addAll(history));
     _scrollToBottom();
+    // User is looking at the chat — everything loaded so far counts as seen.
+    await _markSeen();
 
     // Open WebSocket
     _wsService.connect(widget.chatId, userId);
@@ -98,7 +120,19 @@ class _ChatScreenState extends State<ChatScreen> {
       if (content.trim().isEmpty) return;
       setState(() => _messages.add(msg));
       _scrollToBottom();
+      // Incoming message is on-screen right now — mark it seen so the
+      // nav-bar red dot doesn't light up for a message the user can see.
+      _markSeen();
     });
+  }
+
+  /// Persists the current message count as "seen" and refreshes the
+  /// nav-bar badge so it reflects messages in *other* chats only.
+  Future<void> _markSeen() async {
+    await BadgeService.saveSeenCount(widget.chatId, _messages.length);
+    final chats = await _chatController.getUserChats();
+    final unread = await BadgeService.getUnreadMessageCount(chats);
+    BadgeService.badgeCount.value = unread;
   }
 
   // ── JWT payload decoder ──────────────────────────────────────────────────
@@ -169,6 +203,21 @@ class _ChatScreenState extends State<ChatScreen> {
     );
   }
 
+  // ── Parse photo_url: handles plain URL string or JSON array string ────────
+  List<String> _parsePhotoUrls(String raw) {
+    if (raw.isEmpty) return [];
+    try {
+      final decoded = jsonDecode(raw);
+      if (decoded is List) {
+        return decoded
+            .map((e) => e.toString())
+            .where((s) => s.isNotEmpty)
+            .toList();
+      }
+    } catch (_) {}
+    return [raw];
+  }
+
   // ── Item detail modal ─────────────────────────────────────────────────────
   void _showItemDetailModal() {
     final photoUrl = widget.itemPhoto;
@@ -233,43 +282,9 @@ class _ChatScreenState extends State<ChatScreen> {
                       // Photo with category badge
                       Stack(
                         children: [
-                          photoUrl.isNotEmpty
-                              ? Image.network(
-                                  photoUrl,
-                                  width: double.infinity,
-                                  height: 240,
-                                  fit: BoxFit.cover,
-                                  loadingBuilder: (c, child, prog) {
-                                    if (prog == null) return child;
-                                    return Container(
-                                      width: double.infinity,
-                                      height: 240,
-                                      color: _kSlate900,
-                                      child: const Center(
-                                        child: CircularProgressIndicator(
-                                            color: _kPrimary, strokeWidth: 2),
-                                      ),
-                                    );
-                                  },
-                                  errorBuilder: (c, e, s) => Container(
-                                    width: double.infinity,
-                                    height: 240,
-                                    color: _kSlate900,
-                                    child: const Icon(
-                                        Icons.image_not_supported_outlined,
-                                        color: _kSlate500,
-                                        size: 48),
-                                  ),
-                                )
-                              : Container(
-                                  width: double.infinity,
-                                  height: 240,
-                                  color: _kSlate900,
-                                  child: const Icon(
-                                      Icons.image_not_supported_outlined,
-                                      color: _kSlate500,
-                                      size: 48),
-                                ),
+                          _ItemImageCarousel(
+                            urls: _parsePhotoUrls(photoUrl),
+                          ),
                           Positioned(
                             top: 12,
                             left: 12,
@@ -405,6 +420,9 @@ class _ChatScreenState extends State<ChatScreen> {
 
   @override
   void dispose() {
+    // Fire-and-forget a final seen save so the red dot clears even if the
+    // user leaves while a WS message is still in-flight.
+    BadgeService.saveSeenCount(widget.chatId, _messages.length);
     _wsSub?.cancel();
     _wsService.disconnect();
     _inputController.dispose();
@@ -534,7 +552,7 @@ class _ChatTopBar extends StatelessWidget {
                         ),
                         const SizedBox(height: 2),
                         Text(
-                          '$district · $foundDate',
+                          _buildSubtitle(district, foundDate),
                           style: GoogleFonts.manrope(
                             color: _kAccentPurple,
                             fontSize: 12,
@@ -632,6 +650,103 @@ class _ChatInputBar extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+// ─── Item Image Carousel ──────────────────────────────────────────────────────
+class _ItemImageCarousel extends StatefulWidget {
+  const _ItemImageCarousel({required this.urls});
+  final List<String> urls;
+
+  @override
+  State<_ItemImageCarousel> createState() => _ItemImageCarouselState();
+}
+
+class _ItemImageCarouselState extends State<_ItemImageCarousel> {
+  late final PageController _pageCtrl;
+  int _current = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _pageCtrl = PageController();
+  }
+
+  @override
+  void dispose() {
+    _pageCtrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (widget.urls.isEmpty) {
+      return Container(
+        width: double.infinity,
+        height: 240,
+        color: _kSlate900,
+        child: const Icon(Icons.image_not_supported_outlined,
+            color: _kSlate500, size: 48),
+      );
+    }
+
+    return Column(
+      children: [
+        SizedBox(
+          height: 240,
+          child: PageView.builder(
+            controller: _pageCtrl,
+            itemCount: widget.urls.length,
+            onPageChanged: (i) => setState(() => _current = i),
+            itemBuilder: (_, i) => Image.network(
+              widget.urls[i],
+              width: double.infinity,
+              height: 240,
+              fit: BoxFit.cover,
+              loadingBuilder: (c, child, prog) {
+                if (prog == null) return child;
+                return Container(
+                  width: double.infinity,
+                  height: 240,
+                  color: _kSlate900,
+                  child: const Center(
+                    child: CircularProgressIndicator(
+                        color: _kPrimary, strokeWidth: 2),
+                  ),
+                );
+              },
+              errorBuilder: (c, e, s) => Container(
+                width: double.infinity,
+                height: 240,
+                color: _kSlate900,
+                child: const Icon(Icons.image_not_supported_outlined,
+                    color: _kSlate500, size: 48),
+              ),
+            ),
+          ),
+        ),
+        if (widget.urls.length > 1)
+          Padding(
+            padding: const EdgeInsets.only(top: 8, bottom: 4),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: List.generate(widget.urls.length, (i) {
+                final active = i == _current;
+                return AnimatedContainer(
+                  duration: const Duration(milliseconds: 200),
+                  margin: const EdgeInsets.symmetric(horizontal: 3),
+                  width: active ? 16 : 6,
+                  height: 6,
+                  decoration: BoxDecoration(
+                    color: active ? _kPrimary : _kSlate500,
+                    borderRadius: BorderRadius.circular(3),
+                  ),
+                );
+              }),
+            ),
+          ),
+      ],
     );
   }
 }

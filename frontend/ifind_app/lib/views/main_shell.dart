@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:ui';
 
 import 'package:flutter/material.dart';
@@ -6,7 +7,9 @@ import 'package:google_fonts/google_fonts.dart';
 import '../controllers/chat_controller.dart';
 import '../services/badge_service.dart';
 import 'chat_list_screen.dart';
+import 'found_screen.dart';
 import 'home_screen.dart';
+import 'lost_screen.dart';
 import 'settings_screen.dart';
 
 // ── Design tokens (identical to home_screen.dart palette) ────────────────────
@@ -27,42 +30,58 @@ class MainShell extends StatefulWidget {
 class _MainShellState extends State<MainShell> {
   int _currentIndex = 0;
   int _unreadCount = 0;
+  Timer? _badgeTimer;
 
   @override
   void initState() {
     super.initState();
+    _unreadCount = BadgeService.badgeCount.value;
+    BadgeService.badgeCount.addListener(_onBadgeChanged);
     _refreshBadge();
+    _badgeTimer = Timer.periodic(
+      const Duration(seconds: 5),
+      (_) => _refreshBadge(),
+    );
   }
 
-  /// Fetches the current unseen-message count for the Chat tab badge.
+  @override
+  void dispose() {
+    _badgeTimer?.cancel();
+    BadgeService.badgeCount.removeListener(_onBadgeChanged);
+    super.dispose();
+  }
+
+  void _onBadgeChanged() {
+    if (mounted) setState(() => _unreadCount = BadgeService.badgeCount.value);
+  }
+
+  /// Fetches the current unread-message count (summed across all chats)
+  /// for the Chat tab badge. Polled every 5s, WhatsApp-style.
   Future<void> _refreshBadge() async {
     final chats = await ChatController().getUserChats();
     if (!mounted) return;
-    final allChatIds = chats
-        .map((c) => (c['chat_id'] ?? c['id'])?.toString() ?? '')
-        .where((id) => id.isNotEmpty)
-        .toList();
-    final unread = await BadgeService.getUnseenCount(allChatIds);
+    final unread = await BadgeService.getUnreadMessageCount(chats);
     if (!mounted) return;
-    setState(() => _unreadCount = unread);
+    BadgeService.badgeCount.value = unread;
   }
 
   void _onTabTap(int index) {
-    // Refresh badge whenever the user opens the Chat tab.
-    if (index == 1) _refreshBadge();
+    _refreshBadge();
     setState(() => _currentIndex = index);
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      // IndexedStack keeps all 3 screens alive — no rebuild on tab switch.
+      // IndexedStack keeps all 5 screens alive — no rebuild on tab switch.
       body: IndexedStack(
         index: _currentIndex,
-        children: const [
-          HomeScreen(),
-          ChatListScreen(),
-          SettingsScreen(),
+        children: [
+          HomeScreen(onTabSwitch: _onTabTap),
+          const LostScreen(),
+          FoundScreen(onSubmitSuccess: () => _onTabTap(0)),
+          const ChatListScreen(),
+          const SettingsScreen(),
         ],
       ),
       bottomNavigationBar: _ShellNavBar(
@@ -110,23 +129,35 @@ class _ShellNavBar extends StatelessWidget {
                 mainAxisAlignment: MainAxisAlignment.spaceAround,
                 children: [
                   _NavItem(
-                    icon: Icons.home,
+                    icon: Icons.home_rounded,
                     label: 'HOME',
                     isActive: currentIndex == 0,
                     onTap: () => onTap(0),
                   ),
                   _NavItem(
-                    icon: Icons.chat_bubble_outline,
-                    label: 'CHAT',
+                    icon: Icons.search_rounded,
+                    label: 'I LOST',
                     isActive: currentIndex == 1,
                     onTap: () => onTap(1),
+                  ),
+                  _NavItem(
+                    icon: Icons.add_circle_outline_rounded,
+                    label: 'I FOUND',
+                    isActive: currentIndex == 2,
+                    onTap: () => onTap(2),
+                  ),
+                  _NavItem(
+                    icon: Icons.chat_bubble_outline_rounded,
+                    label: 'CHAT',
+                    isActive: currentIndex == 3,
+                    onTap: () => onTap(3),
                     unreadCount: unreadCount,
                   ),
                   _NavItem(
-                    icon: Icons.settings_outlined,
+                    icon: Icons.settings_rounded,
                     label: 'SETTINGS',
-                    isActive: currentIndex == 2,
-                    onTap: () => onTap(2),
+                    isActive: currentIndex == 4,
+                    onTap: () => onTap(4),
                   ),
                 ],
               ),

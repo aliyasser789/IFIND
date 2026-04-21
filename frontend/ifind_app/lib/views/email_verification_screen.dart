@@ -312,7 +312,7 @@ class _OtpBox extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return SizedBox(
-      width:  44,
+      width:  48,
       height: 56,
       child: Focus(
         onKeyEvent: (_, event) {
@@ -325,22 +325,24 @@ class _OtpBox extends StatelessWidget {
           return KeyEventResult.ignored;
         },
         child: TextField(
-          controller:      controller,
-          focusNode:       focusNode,
-          textAlign:       TextAlign.center,
-          keyboardType:    TextInputType.number,
-          maxLength:       1,
-          inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-          onChanged:       onChanged,
+          controller:         controller,
+          focusNode:          focusNode,
+          textAlign:          TextAlign.center,
+          textAlignVertical:  TextAlignVertical.center,
+          keyboardType:       TextInputType.number,
+          maxLength:          1,
+          inputFormatters:    [FilteringTextInputFormatter.digitsOnly],
+          onChanged:          onChanged,
           style: GoogleFonts.manrope(
             color:      Colors.white,
             fontSize:   20,
             fontWeight: FontWeight.w700,
           ),
           decoration: InputDecoration(
-            counterText: '',
-            filled:      true,
-            fillColor:   _kInputBg,
+            counterText:    '',
+            filled:         true,
+            fillColor:      _kInputBg,
+            contentPadding: EdgeInsets.zero,
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
               borderSide:   const BorderSide(color: _kInputBorder),

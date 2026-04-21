@@ -5,6 +5,7 @@ import 'package:google_fonts/google_fonts.dart';
 
 import '../services/api_service.dart';
 import '../services/storage_service.dart';
+import 'email_verification_screen.dart';
 import 'forgot_password_screen.dart';
 import 'id_verification_screen.dart';
 import 'main_shell.dart';
@@ -93,6 +94,29 @@ class _AuthScreenState extends State<AuthScreen> {
               : IdVerificationScreen(email: email),
         ),
         (_) => false,
+      );
+    } else if (result['email_not_verified'] == true) {
+      // Email exists but isn't verified — navigate to OTP screen.
+      // EmailVerificationScreen.initState() auto-sends a fresh code via POST /auth/send-verification.
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Please verify your email first. We sent a new code to your inbox.',
+            style: GoogleFonts.manrope(color: Colors.white, fontSize: 14),
+          ),
+          backgroundColor: _kPrimary,
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+          margin: const EdgeInsets.all(_sp16),
+        ),
+      );
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => EmailVerificationScreen(email: email),
+        ),
       );
     } else {
       ScaffoldMessenger.of(context).showSnackBar(

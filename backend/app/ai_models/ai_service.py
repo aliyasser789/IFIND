@@ -11,6 +11,8 @@ import json
 import os
 from pathlib import Path
 
+from app.services.item_service import YOLO_CATEGORIES
+
 import cv2
 import numpy as np
 from dotenv import load_dotenv
@@ -77,6 +79,8 @@ def analyze_photo(image_bytes: bytes) -> dict:
             continue
         cls_id = int(box.cls[0])
         category = _model.names[cls_id]
+        if category not in YOLO_CATEGORIES:
+            category = "Other"
         detections.append({"category": category, "conf": conf})
 
     if not detections:

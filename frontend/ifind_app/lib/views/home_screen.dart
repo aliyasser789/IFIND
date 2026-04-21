@@ -6,11 +6,10 @@ import 'package:google_fonts/google_fonts.dart';
 
 import '../controllers/chat_controller.dart';
 import '../services/api_service.dart';
+import '../services/badge_service.dart';
 import '../services/storage_service.dart';
 import 'auth_screen.dart';
 import 'chat_screen.dart';
-import 'found_screen.dart';
-import 'lost_screen.dart';
 
 // ── Design tokens (identical palette to auth_screen.dart / splash_screen.dart) ─
 const _kBaseUrl = String.fromEnvironment(
@@ -30,7 +29,9 @@ const _kCardBg = Color(0xFF1E2A3A);
 // HomeScreen — body content for the Home tab inside MainShell
 // ─────────────────────────────────────────────────────────────────────────────
 class HomeScreen extends StatefulWidget {
-  const HomeScreen({super.key});
+  const HomeScreen({super.key, this.onTabSwitch});
+
+  final ValueChanged<int>? onTabSwitch;
 
   @override
   State<HomeScreen> createState() => _HomeScreenState();
@@ -40,11 +41,39 @@ class _HomeScreenState extends State<HomeScreen> {
   String _displayName = '';
   bool _loading = true;
   List<Map<String, dynamic>> _recentItems = [];
+  // ignore: unused_field
+  int _unreadCount = 0;
 
   @override
   void initState() {
     super.initState();
     _init();
+    _unreadCount = BadgeService.badgeCount.value;
+    BadgeService.badgeCount.addListener(_onBadgeChanged);
+  }
+
+  void _onBadgeChanged() {
+    if (mounted) setState(() => _unreadCount = BadgeService.badgeCount.value);
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _loadUnreadCount();
+  }
+
+  Future<void> _loadUnreadCount() async {
+    final chats = await ChatController().getUserChats();
+    if (!mounted) return;
+    final unread = await BadgeService.getUnreadMessageCount(chats);
+    if (!mounted) return;
+    BadgeService.badgeCount.value = unread;
+  }
+
+  @override
+  void dispose() {
+    BadgeService.badgeCount.removeListener(_onBadgeChanged);
+    super.dispose();
   }
 
   Future<void> _init() async {
@@ -107,245 +136,53 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
 
           // ── Main layout ──────────────────────────────────────────────────
-          Column(
-            children: [
-              // Fixed top header
-              const _HomeHeader(),
-
-              // Scrollable body
-              Expanded(
-                child: SingleChildScrollView(
-                  padding: const EdgeInsets.fromLTRB(24, 32, 24, 32),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      // Welcome
-                      _WelcomeSection(displayName: _displayName),
-                      const SizedBox(height: 32),
-
-                      // Action cards
-                      _ActionCard(
-                        title: 'I Found Something',
-                        subtitle: 'Report an item you found',
-                        icon: Icons.front_hand,
-                        accentColor: _kPrimary,
-                        onTap: () => Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => const FoundScreen(),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 24),
-                      _ActionCard(
-                        title: 'I Lost Something',
-                        subtitle: 'Search for your lost item',
-                        icon: Icons.search,
-                        accentColor: _kAccentPurple,
-                        onTap: () => Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => const LostScreen(),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 32),
-
-                      // Recent near you
-                      _RecentSection(items: _recentItems),
-                    ],
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-// ─── Top Header ───────────────────────────────────────────────────────────────
-class _HomeHeader extends StatelessWidget {
-  const _HomeHeader();
-
-  @override
-  Widget build(BuildContext context) {
-    return ClipRect(
-      child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
-        child: Container(
-          decoration: BoxDecoration(
-            color: _kSlate900.withValues(alpha: 0.40),
-            border: Border(
-              bottom: BorderSide(
-                color: Colors.white.withValues(alpha: 0.10),
-                width: 1,
-              ),
-            ),
-          ),
-          child: SafeArea(
-            bottom: false,
-            child: SizedBox(
-              height: 64,
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 24),
-                child: Row(
-                  children: [
-                    // ── Pin logo ──────────────────────────────────────────
-                    Stack(
-                      alignment: Alignment.center,
-                      children: [
-                        // Outer blurred glow
-                        ImageFiltered(
-                          imageFilter: ImageFilter.blur(sigmaX: 6, sigmaY: 6),
-                          child: Container(
-                            width: 54,
-                            height: 54,
-                            decoration: BoxDecoration(
-                              borderRadius: BorderRadius.circular(16),
-                              gradient: LinearGradient(
-                                begin: Alignment.bottomLeft,
-                                end: Alignment.topRight,
-                                colors: [
-                                  _kPrimary.withValues(alpha: 0.40),
-                                  _kAccentPurple.withValues(alpha: 0.40),
-                                ],
-                              ),
-                            ),
-                          ),
-                        ),
-                        // Card body
-                        Container(
-                          width: 40,
-                          height: 40,
-                          decoration: BoxDecoration(
-                            borderRadius: BorderRadius.circular(12),
-                            color: _kSlate900,
-                            border: Border.all(
-                              color: Colors.white.withValues(alpha: 0.10),
-                              width: 1,
-                            ),
-                            boxShadow: [
-                              BoxShadow(
-                                color: Colors.black.withValues(alpha: 0.40),
-                                blurRadius: 24,
-                                offset: const Offset(0, 12),
-                              ),
-                            ],
-                          ),
-                          child: ClipRRect(
-                            borderRadius: BorderRadius.circular(12),
-                            child: Stack(
-                              alignment: Alignment.center,
-                              children: [
-                                // Internal gradient overlay
-                                Positioned.fill(
-                                  child: DecoratedBox(
-                                    decoration: BoxDecoration(
-                                      gradient: LinearGradient(
-                                        begin: Alignment.topLeft,
-                                        end: Alignment.bottomRight,
-                                        colors: [
-                                          _kPrimary.withValues(alpha: 0.20),
-                                          Colors.transparent,
-                                          _kAccentPurple.withValues(
-                                              alpha: 0.20),
-                                        ],
-                                        stops: const [0.0, 0.50, 1.0],
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                                // Blurred ring behind pin
-                                ImageFiltered(
-                                  imageFilter:
-                                      ImageFilter.blur(sigmaX: 3, sigmaY: 3),
-                                  child: Icon(
-                                    Icons.radio_button_checked,
-                                    size: 27,
-                                    color: _kPrimary.withValues(alpha: 0.40),
-                                  ),
-                                ),
-                                // Location pin with shader
-                                ShaderMask(
-                                  blendMode: BlendMode.srcATop,
-                                  shaderCallback: (bounds) =>
-                                      const RadialGradient(
-                                    center: Alignment(0, -0.3),
-                                    radius: 0.65,
-                                    colors: [
-                                      Color(0xFFFFFFFF),
-                                      Color(0xFFD0DEFF),
-                                    ],
-                                  ).createShader(bounds),
-                                  child: Icon(
-                                    Icons.location_on,
-                                    size: 22,
-                                    color: Colors.white,
-                                    shadows: [
-                                      Shadow(
-                                        color: Colors.white
-                                            .withValues(alpha: 0.30),
-                                        blurRadius: 12,
-                                        offset: Offset.zero,
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-
-                    const SizedBox(width: 12),
-
-                    // ── "iFind" text + gradient underline ─────────────────
-                    Column(
-                      mainAxisSize: MainAxisSize.min,
+          SafeArea(
+            top: false,
+            child: Column(
+              children: [
+                const _HomeHeader(),
+                // Scrollable body
+                Expanded(
+                  child: SingleChildScrollView(
+                    padding: const EdgeInsets.fromLTRB(24, 32, 24, 32),
+                    child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        RichText(
-                          text: TextSpan(
-                            style: GoogleFonts.manrope(
-                              fontSize: 24,
-                              fontWeight: FontWeight.w800,
-                              letterSpacing: -0.5,
-                              height: 1.0,
-                            ),
-                            children: const [
-                              TextSpan(
-                                text: 'i',
-                                style: TextStyle(color: Colors.white),
-                              ),
-                              TextSpan(
-                                text: 'Find',
-                                style: TextStyle(color: _kPrimary),
-                              ),
-                            ],
-                          ),
+                        // Welcome
+                        _WelcomeSection(displayName: _displayName),
+                        const SizedBox(height: 32),
+
+                        // Action cards
+                        _ActionCard(
+                          title: 'I Found Something',
+                          subtitle: 'Report an item you found',
+                          icon: Icons.front_hand,
+                          accentColor: _kPrimary,
+                          onTap: () => widget.onTabSwitch?.call(2),
                         ),
-                        const SizedBox(height: 5),
-                        Container(
-                          width: 32,
-                          height: 3,
-                          decoration: BoxDecoration(
-                            borderRadius: BorderRadius.circular(999),
-                            gradient: const LinearGradient(
-                              colors: [_kPrimary, _kAccentPurple],
-                            ),
-                          ),
+                        const SizedBox(height: 24),
+                        _ActionCard(
+                          title: 'I Lost Something',
+                          subtitle: 'Search for your lost item',
+                          icon: Icons.search,
+                          accentColor: _kAccentPurple,
+                          onTap: () => widget.onTabSwitch?.call(1),
+                        ),
+                        const SizedBox(height: 32),
+
+                        // Recent near you
+                        _RecentSection(
+                          items: _recentItems,
+                          onSeeAll: () => widget.onTabSwitch?.call(1),
                         ),
                       ],
                     ),
-                  ],
+                  ),
                 ),
-              ),
+              ],
             ),
           ),
-        ),
+        ],
       ),
     );
   }
@@ -506,9 +343,10 @@ class _ActionCard extends StatelessWidget {
 
 // ─── Recent Near You Section ──────────────────────────────────────────────────
 class _RecentSection extends StatelessWidget {
-  const _RecentSection({required this.items});
+  const _RecentSection({required this.items, this.onSeeAll});
 
   final List<Map<String, dynamic>> items;
+  final VoidCallback? onSeeAll;
 
   @override
   Widget build(BuildContext context) {
@@ -528,10 +366,7 @@ class _RecentSection extends StatelessWidget {
               ),
             ),
             GestureDetector(
-              onTap: () => Navigator.push(
-                context,
-                MaterialPageRoute(builder: (_) => const LostScreen()),
-              ),
+              onTap: onSeeAll,
               behavior: HitTestBehavior.opaque,
               child: Text(
                 'SEE ALL',
@@ -574,24 +409,43 @@ class _HomeItemCard extends StatelessWidget {
 
   final Map<String, dynamic> item;
 
-  String _buildPhotoUrl() {
-    try {
-      final photoList = item['photo_url'] as List<dynamic>;
-      if (photoList.isEmpty) return '';
-      final path = photoList[0] as String;
-      final filename = path.split('/').last;
-      final itemId = item['id'];
-      return '$_kBaseUrl/items/photos/$itemId/$filename';
-    } catch (_) {
-      return '';
+  List<String> _buildPhotoUrls() {
+    final raw = item['photo_url'];
+    List<dynamic> paths = [];
+    if (raw is List) {
+      paths = raw;
+    } else if (raw is String && raw.isNotEmpty) {
+      try {
+        final decoded = jsonDecode(raw);
+        if (decoded is List) {
+          paths = decoded;
+        } else {
+          paths = [raw];
+        }
+      } catch (_) {
+        paths = [raw];
+      }
     }
+    final itemId = item['id'];
+    return paths
+        .take(5)
+        .map((p) {
+          final path = p.toString();
+          if (path.isEmpty) return '';
+          final filename = path.split('/').last;
+          return '$_kBaseUrl/items/photos/$itemId/$filename';
+        })
+        .where((s) => s.isNotEmpty)
+        .toList();
   }
 
   String _formatDate() {
     final dateStr = item['created_at'] as String?;
     if (dateStr == null) return 'Unknown date';
     try {
-      final date = DateTime.parse(dateStr).toLocal();
+      final date = DateTime.parse(
+        dateStr.endsWith('Z') ? dateStr : '${dateStr}Z'
+      ).toLocal();
       final now = DateTime.now();
       final today = DateTime(now.year, now.month, now.day);
       final itemDay = DateTime(date.year, date.month, date.day);
@@ -628,6 +482,9 @@ class _HomeItemCard extends StatelessWidget {
 
     final chatId = await ChatController().startChat(itemId, finderId, currentUserId);
     if (chatId == null) return;
+    // The initiator is opening the chat themselves — mark it seen so they
+    // don't see a blue "NEW" sign on their own conversation.
+    await BadgeService.saveSeenChatId(chatId);
     if (!context.mounted) return;
 
     final features     = item['features'];
@@ -635,7 +492,7 @@ class _HomeItemCard extends StatelessWidget {
                          ?? (item['name'] as String?) ?? 'Unknown Item';
     final district     = (item['district']   as String?) ?? '';
     final foundDate    = (item['created_at'] as String?) ?? '';
-    final itemPhoto    = _buildPhotoUrl();
+    final itemPhoto    = jsonEncode(_buildPhotoUrls());
     final itemCategory = item['category']?.toString() ?? '';
     final itemFeatures = (features as Map<String, dynamic>?) ?? {};
 
@@ -657,7 +514,6 @@ class _HomeItemCard extends StatelessWidget {
   }
 
   void _showModal(BuildContext context) {
-    final photoUrl = _buildPhotoUrl();
     final category = item['category'] as String? ?? 'Unknown';
     final features = item['features'];
     final district = item['district'] as String? ?? 'Unknown';
@@ -717,46 +573,13 @@ class _HomeItemCard extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      // Photo with category badge
+                      // Photo carousel with category badge
                       Stack(
                         children: [
-                          photoUrl.isNotEmpty
-                              ? Image.network(
-                                  photoUrl,
-                                  width: double.infinity,
-                                  height: 240,
-                                  fit: BoxFit.cover,
-                                  loadingBuilder: (c, child, prog) {
-                                    if (prog == null) return child;
-                                    return Container(
-                                      width: double.infinity,
-                                      height: 240,
-                                      color: _kSlate900,
-                                      child: const Center(
-                                        child: CircularProgressIndicator(
-                                            color: _kPrimary, strokeWidth: 2),
-                                      ),
-                                    );
-                                  },
-                                  errorBuilder: (c, e, s) => Container(
-                                    width: double.infinity,
-                                    height: 240,
-                                    color: _kSlate900,
-                                    child: const Icon(
-                                        Icons.image_not_supported_outlined,
-                                        color: _kSlate500,
-                                        size: 48),
-                                  ),
-                                )
-                              : Container(
-                                  width: double.infinity,
-                                  height: 240,
-                                  color: _kSlate900,
-                                  child: const Icon(
-                                      Icons.image_not_supported_outlined,
-                                      color: _kSlate500,
-                                      size: 48),
-                                ),
+                          _CardImageCarousel(
+                            urls: _buildPhotoUrls(),
+                            height: 240,
+                          ),
                           Positioned(
                             top: 12,
                             left: 12,
@@ -898,7 +721,6 @@ class _HomeItemCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final photoUrl = _buildPhotoUrl();
     final category = item['category'] as String? ?? 'Unknown';
     final features = item['features'];
     final description = (features is Map)
@@ -933,51 +755,7 @@ class _HomeItemCard extends StatelessWidget {
                 // Photo with category badge
                 Stack(
                   children: [
-                    ClipRRect(
-                      borderRadius:
-                          const BorderRadius.vertical(top: Radius.circular(20)),
-                      child: photoUrl.isNotEmpty
-                          ? Image.network(
-                              photoUrl,
-                              width: double.infinity,
-                              height: 180,
-                              fit: BoxFit.cover,
-                              loadingBuilder: (ctx, child, progress) {
-                                if (progress == null) return child;
-                                return Container(
-                                  width: double.infinity,
-                                  height: 180,
-                                  color: _kSlate900,
-                                  child: const Center(
-                                    child: CircularProgressIndicator(
-                                      color: _kPrimary,
-                                      strokeWidth: 2,
-                                    ),
-                                  ),
-                                );
-                              },
-                              errorBuilder: (ctx, error, stack) => Container(
-                                width: double.infinity,
-                                height: 180,
-                                color: _kSlate900,
-                                child: const Icon(
-                                  Icons.image_not_supported_outlined,
-                                  color: _kSlate500,
-                                  size: 40,
-                                ),
-                              ),
-                            )
-                          : Container(
-                              width: double.infinity,
-                              height: 180,
-                              color: _kSlate900,
-                              child: const Icon(
-                                Icons.image_not_supported_outlined,
-                                color: _kSlate500,
-                                size: 40,
-                              ),
-                            ),
-                    ),
+                    _CardImageCarousel(urls: _buildPhotoUrls()),
                     // Category badge — top-left overlay
                     Positioned(
                       top: 12,
@@ -1078,6 +856,149 @@ class _HomeItemCard extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+// ─── Card Image Carousel ──────────────────────────────────────────────────────
+class _CardImageCarousel extends StatefulWidget {
+  const _CardImageCarousel({required this.urls, this.height = 180});
+  final List<String> urls;
+  final double height;
+
+  @override
+  State<_CardImageCarousel> createState() => _CardImageCarouselState();
+}
+
+class _CardImageCarouselState extends State<_CardImageCarousel> {
+  late final PageController _pageCtrl;
+  int _current = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _pageCtrl = PageController();
+  }
+
+  @override
+  void dispose() {
+    _pageCtrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (widget.urls.isEmpty) {
+      return ClipRRect(
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+        child: Container(
+          width: double.infinity,
+          height: widget.height,
+          color: _kSlate900,
+          child: const Icon(Icons.image_not_supported_outlined,
+              color: _kSlate500, size: 40),
+        ),
+      );
+    }
+
+    return ClipRRect(
+      borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+      child: Stack(
+        children: [
+          SizedBox(
+            height: widget.height,
+            child: PageView.builder(
+              controller: _pageCtrl,
+              itemCount: widget.urls.length,
+              onPageChanged: (i) => setState(() => _current = i),
+              itemBuilder: (_, i) => Image.network(
+                widget.urls[i],
+                width: double.infinity,
+                height: widget.height,
+                fit: BoxFit.cover,
+                loadingBuilder: (c, child, prog) {
+                  if (prog == null) return child;
+                  return Container(
+                    width: double.infinity,
+                    height: widget.height,
+                    color: _kSlate900,
+                    child: const Center(
+                      child: CircularProgressIndicator(
+                          color: _kPrimary, strokeWidth: 2),
+                    ),
+                  );
+                },
+                errorBuilder: (c, e, s) => Container(
+                  width: double.infinity,
+                  height: widget.height,
+                  color: _kSlate900,
+                  child: const Icon(Icons.image_not_supported_outlined,
+                      color: _kSlate500, size: 40),
+                ),
+              ),
+            ),
+          ),
+          if (widget.urls.length > 1)
+            Positioned(
+              bottom: 8,
+              left: 0,
+              right: 0,
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: List.generate(widget.urls.length, (i) {
+                  final active = i == _current;
+                  return AnimatedContainer(
+                    duration: const Duration(milliseconds: 200),
+                    margin: const EdgeInsets.symmetric(horizontal: 3),
+                    width: active ? 16 : 6,
+                    height: 6,
+                    decoration: BoxDecoration(
+                      color: active
+                          ? _kPrimary
+                          : Colors.white.withValues(alpha: 0.5),
+                      borderRadius: BorderRadius.circular(3),
+                    ),
+                  );
+                }),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+// ─── Home Header ─────────────────────────────────────────────────────────────
+class _HomeHeader extends StatelessWidget {
+  const _HomeHeader();
+
+  @override
+  Widget build(BuildContext context) {
+    return ClipRect(
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
+        child: Container(
+          decoration: BoxDecoration(
+            color: _kSlate900.withValues(alpha: 0.40),
+            border: Border(
+              bottom: BorderSide(
+                color: Colors.white.withValues(alpha: 0.10),
+                width: 1,
+              ),
+            ),
+          ),
+          child: const SafeArea(
+            bottom: false,
+            child: SizedBox(
+              height: 64,
+              child: Padding(
+                padding: EdgeInsets.symmetric(horizontal: 24),
+                child: Row(children: []),
+              ),
+            ),
+          ),
+        ),
       ),
     );
   }

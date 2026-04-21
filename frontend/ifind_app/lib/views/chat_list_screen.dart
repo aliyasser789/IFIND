@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
@@ -32,11 +34,26 @@ class _ChatListScreenState extends State<ChatListScreen> {
   List<Map<String, dynamic>> _chats = [];
   bool _isLoading = true;
   Set<String> _seenIds = {};
+  Map<String, int> _unreadByChat = <String, int>{};
+  Timer? _pollTimer;
 
   @override
   void initState() {
     super.initState();
     _loadChats();
+    // Poll every 5 seconds so per-row unread counts stay fresh while the user
+    // is looking at the list. main_shell polls the nav-bar total separately;
+    // this one updates the per-chat red pills.
+    _pollTimer = Timer.periodic(
+      const Duration(seconds: 5),
+      (_) => _loadChats(),
+    );
+  }
+
+  @override
+  void dispose() {
+    _pollTimer?.cancel();
+    super.dispose();
   }
 
   Future<void> _loadChats() async {
@@ -49,11 +66,29 @@ class _ChatListScreenState extends State<ChatListScreen> {
       return bDate.compareTo(aDate);
     });
     final seenIds = await BadgeService.getSeenChatIds();
+
+    // Per-chat unread counts so each row can show "user X has N new messages".
+    final unreadByChat = <String, int>{};
+    var totalUnread = 0;
+    for (final chat in chats) {
+      final id = (chat['chat_id'] ?? chat['id'])?.toString() ?? '';
+      if (id.isEmpty) continue;
+      final current = (chat['message_count'] as int?) ?? 0;
+      final seen = await BadgeService.getSeenCount(id);
+      final delta = current - seen;
+      if (delta > 0) {
+        unreadByChat[id] = delta;
+        totalUnread += delta;
+      }
+    }
+
     if (mounted) {
+      BadgeService.badgeCount.value = totalUnread;
       setState(() {
         _chats = chats;
         _isLoading = false;
         _seenIds = seenIds;
+        _unreadByChat = unreadByChat;
       });
     }
   }
@@ -62,8 +97,9 @@ class _ChatListScreenState extends State<ChatListScreen> {
     final chatId = (chat['chat_id'] ?? chat['id'])?.toString() ?? '';
     final itemName = (chat['item_name'] as String?) ?? 'Unknown Item';
     final district = (chat['district'] as String?) ?? '';
-    final foundDate = (chat['found_date'] as String?) ?? '';
+    final foundDate = (chat['foundDate'] as String?) ?? '';
     final finderId = (chat['finder_id'] ?? 0).toString();
+    final otherUsername = (chat['other_user_username'] as String?) ?? 'Unknown User';
 
     // Build full photo URL the same way _ChatRow does
     final itemId = chat['item_id']?.toString() ?? '';
@@ -74,6 +110,21 @@ class _ChatListScreenState extends State<ChatListScreen> {
         : '';
     final itemCategory = (chat['item_category'] as String?) ?? '';
 
+    // Mark the chat seen the moment the user opens it (WhatsApp-style) so
+    // both the blue NEW pill (per-user) and the red nav-bar counter
+    // (per-message) clear instantly.
+    if (chatId.isNotEmpty) {
+      final msgCount = (chat['message_count'] as int?) ?? 0;
+      await BadgeService.saveSeenChatId(chatId);
+      await BadgeService.saveSeenCount(chatId, msgCount);
+      if (mounted) {
+        setState(() => _seenIds = {..._seenIds, chatId});
+        BadgeService.badgeCount.value =
+            await BadgeService.getUnreadMessageCount(_chats);
+      }
+    }
+
+    if (!mounted) return;
     await Navigator.push(
       context,
       MaterialPageRoute(
@@ -86,12 +137,10 @@ class _ChatListScreenState extends State<ChatListScreen> {
           itemPhoto: itemPhoto,
           itemCategory: itemCategory,
           itemFeatures: (chat['item_features'] as Map<String, dynamic>?) ?? {},
+          otherUsername: otherUsername,
         ),
       ),
     );
-    if (chatId.isNotEmpty) {
-      await BadgeService.saveSeenChatId(chatId);
-    }
     await _loadChats();
   }
 
@@ -181,6 +230,7 @@ class _ChatListScreenState extends State<ChatListScreen> {
                               chat: chat,
                               onTap: () => _openChat(chat),
                               isNew: !_seenIds.contains(chatId),
+                              unreadCount: _unreadByChat[chatId] ?? 0,
                             ),
                           );
                         },
@@ -230,12 +280,17 @@ class _ChatListTopBar extends StatelessWidget {
 
 // ─── Chat Row ────────────────────────────────────────────────────────────────
 class _ChatRow extends StatelessWidget {
-  const _ChatRow(
-      {required this.chat, required this.onTap, required this.isNew});
+  const _ChatRow({
+    required this.chat,
+    required this.onTap,
+    required this.isNew,
+    required this.unreadCount,
+  });
 
   final Map<String, dynamic> chat;
   final VoidCallback onTap;
   final bool isNew;
+  final int unreadCount;
 
   Widget _photoPlaceholder() => Container(
         width: 44,
@@ -250,11 +305,13 @@ class _ChatRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final itemName = (chat['item_name'] as String?) ?? 'Unknown Item';
     final district = (chat['district'] as String?) ?? '';
-    final otherLabel = (chat['other_user_label'] as String?) ??
-        (chat['other_label'] as String?) ??
-        'Anonymous';
+    final otherLabel = (chat['other_user_username'] as String?) ?? 'Unknown User';
+    final rawDate = chat['created_at']?.toString() ?? '';
+    final parsedDate = DateTime.tryParse(rawDate);
+    final dateLabel = parsedDate != null
+        ? '${parsedDate.month}/${parsedDate.day}/${parsedDate.year}'
+        : rawDate;
     final itemId = chat['item_id']?.toString() ?? '';
     final photoFile = chat['item_photo_url'] as String?;
     final photoFilename = photoFile?.split('/').last ?? '';
@@ -298,9 +355,9 @@ class _ChatRow extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      // Item name
+                      // other_user_username
                       Text(
-                        itemName,
+                        otherLabel,
                         style: GoogleFonts.manrope(
                           color: Colors.white,
                           fontSize: 15,
@@ -311,7 +368,7 @@ class _ChatRow extends StatelessWidget {
                       ),
                       const SizedBox(height: 4),
 
-                      // District + other user label on same row
+                      // District · date
                       Row(
                         children: [
                           if (district.isNotEmpty) ...[
@@ -336,7 +393,7 @@ class _ChatRow extends StatelessWidget {
                           ],
                           Expanded(
                             child: Text(
-                              otherLabel,
+                              dateLabel,
                               style: GoogleFonts.manrope(
                                 color: _kHint,
                                 fontSize: 12,
@@ -351,13 +408,37 @@ class _ChatRow extends StatelessWidget {
                   ),
                 ),
 
+                // ── Per-user unread-message count ──────────────────────
+                if (unreadCount > 0) ...[
+                  Container(
+                    constraints: const BoxConstraints(minWidth: 22),
+                    height: 22,
+                    padding: const EdgeInsets.symmetric(horizontal: 7),
+                    decoration: const BoxDecoration(
+                      color: Color(0xFFE24B4A),
+                      borderRadius: BorderRadius.all(Radius.circular(11)),
+                    ),
+                    alignment: Alignment.center,
+                    child: Text(
+                      unreadCount > 99 ? '99+' : '$unreadCount',
+                      style: GoogleFonts.manrope(
+                        color: Colors.white,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700,
+                        height: 1.0,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 6),
+                ],
+
                 // ── Chevron ───────────────────────────────────────────
                 const Icon(Icons.chevron_right, color: _kHint, size: 20),
               ],
             ),
           ),
 
-          // ── NEW badge ─────────────────────────────────────────────────
+          // ── Blue NEW badge — only for chats the user hasn't opened yet ──
           if (isNew)
             Positioned(
               top: -6,

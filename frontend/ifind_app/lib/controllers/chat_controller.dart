@@ -87,7 +87,11 @@ class ChatController {
       );
       final raw = response.data;
       final data = (raw is String ? jsonDecode(raw) : raw) as List<dynamic>;
-      return data.cast<Map<String, dynamic>>();
+      return data.map((item) {
+        final chat = Map<String, dynamic>.from(item as Map);
+        chat['foundDate'] = (chat['item_created_at'] as String?) ?? '';
+        return chat;
+      }).toList();
     } catch (e) {
       return [];
     }

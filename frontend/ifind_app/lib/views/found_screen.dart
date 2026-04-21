@@ -10,8 +10,6 @@ import 'package:image_picker/image_picker.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:permission_handler/permission_handler.dart';
 
-import 'home_screen.dart';
-
 // ─────────────────────────────────────────────────────────────────────────────
 // Constants
 // ─────────────────────────────────────────────────────────────────────────────
@@ -46,7 +44,9 @@ const _districts = [
 // ─────────────────────────────────────────────────────────────────────────────
 
 class FoundScreen extends StatefulWidget {
-  const FoundScreen({super.key});
+  const FoundScreen({super.key, this.onSubmitSuccess});
+
+  final VoidCallback? onSubmitSuccess;
 
   @override
   State<FoundScreen> createState() => _FoundScreenState();
@@ -67,7 +67,9 @@ class _FoundScreenState extends State<FoundScreen> {
     connectTimeout: const Duration(seconds: 10),
     receiveTimeout: const Duration(seconds: 15),
   ));
-  final _storage = const FlutterSecureStorage();
+  final _storage = const FlutterSecureStorage(
+    aOptions: AndroidOptions(encryptedSharedPreferences: true),
+  );
   final _recorder = FlutterSoundRecorder();
   String? _recordingPath;
   bool _recorderReady = false;
@@ -247,11 +249,7 @@ class _FoundScreenState extends State<FoundScreen> {
           _descCtrl.clear();
         });
         if (mounted) {
-          Navigator.pushAndRemoveUntil(
-            context,
-            MaterialPageRoute(builder: (_) => const HomeScreen()),
-            (route) => false,
-          );
+          widget.onSubmitSuccess?.call();
         }
       }
     } on DioException catch (e) {
@@ -307,9 +305,6 @@ class _FoundScreenState extends State<FoundScreen> {
       body: SafeArea(
         child: Column(
           children: [
-            // Custom top bar — no AppBar
-            _TopBar(onBack: () => Navigator.pop(context)),
-
             // Scrollable form body
             Expanded(
               child: SingleChildScrollView(
@@ -364,8 +359,6 @@ class _FoundScreenState extends State<FoundScreen> {
               ),
             ),
 
-            // Bottom nav
-            _BottomNav(onHomeTap: () => Navigator.pop(context)),
           ],
         ),
       ),
@@ -373,48 +366,6 @@ class _FoundScreenState extends State<FoundScreen> {
   }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// _TopBar
-// ─────────────────────────────────────────────────────────────────────────────
-
-class _TopBar extends StatelessWidget {
-  final VoidCallback onBack;
-  const _TopBar({required this.onBack});
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 12, 20, 4),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          GestureDetector(
-            onTap: onBack,
-            behavior: HitTestBehavior.opaque,
-            child: Container(
-              width: 40,
-              height: 40,
-              decoration: BoxDecoration(
-                color: _slateCard,
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child:
-                  const Icon(Icons.arrow_back, color: Colors.white, size: 20),
-            ),
-          ),
-          Text(
-            'iFind',
-            style: GoogleFonts.manrope(
-              fontSize: 22,
-              fontWeight: FontWeight.w800,
-              color: _blue,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Photo section
@@ -943,101 +894,6 @@ class _ConfirmButton extends StatelessWidget {
   }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Bottom nav bar
-// ─────────────────────────────────────────────────────────────────────────────
-
-class _BottomNav extends StatelessWidget {
-  final VoidCallback onHomeTap;
-  const _BottomNav({required this.onHomeTap});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      decoration: BoxDecoration(
-        color: _slateDark,
-        border: Border(
-            top: BorderSide(color: Colors.white.withValues(alpha: 0.07))),
-      ),
-      child: SafeArea(
-        top: false,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 8),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceAround,
-            children: [
-              _NavItem(
-                icon: Icons.home_outlined,
-                label: 'Home',
-                active: false,
-                onTap: onHomeTap,
-              ),
-              _NavItem(
-                icon: Icons.add_circle_outline_rounded,
-                label: 'I Found',
-                active: true,
-                onTap: () {},
-              ),
-              _NavItem(
-                icon: Icons.chat_bubble_outline_rounded,
-                label: 'Chat',
-                active: false,
-                onTap: () {},
-              ),
-              _NavItem(
-                icon: Icons.settings_outlined,
-                label: 'Settings',
-                active: false,
-                onTap: () {},
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _NavItem extends StatelessWidget {
-  final IconData icon;
-  final String label;
-  final bool active;
-  final VoidCallback onTap;
-
-  const _NavItem({
-    required this.icon,
-    required this.label,
-    required this.active,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final color = active ? _blue : _textSecondary;
-    return GestureDetector(
-      onTap: onTap,
-      behavior: HitTestBehavior.opaque,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(icon, color: color, size: 24),
-            const SizedBox(height: 4),
-            Text(
-              label,
-              style: GoogleFonts.manrope(
-                fontSize: 11,
-                fontWeight: active ? FontWeight.w700 : FontWeight.w400,
-                color: color,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Photo source bottom sheet

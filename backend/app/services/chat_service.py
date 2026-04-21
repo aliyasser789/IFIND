@@ -55,19 +55,37 @@ def get_chat_history(db: Session, chat_id: uuid.UUID) -> list[dict]:
     ]
 
 
-def get_user_chats(db: Session, user_id: uuid.UUID) -> list[Chat]:
+def get_user_chats(db: Session, user_id: uuid.UUID) -> list[tuple]:
     from sqlalchemy import and_, or_
-    return (
-        db.query(Chat)
+    from sqlalchemy.orm import aliased
+    from app.models.user import User
+
+    FinderUser = aliased(User)
+    ClaimerUser = aliased(User)
+
+    rows = (
+        db.query(Chat, FinderUser.username, ClaimerUser.username)
+        .join(FinderUser, Chat.finder_id == FinderUser.id)
+        .join(ClaimerUser, Chat.claimer_id == ClaimerUser.id)
         .filter(
             or_(
                 and_(Chat.finder_id == user_id, Chat.deleted_by_finder == False),
                 and_(Chat.claimer_id == user_id, Chat.deleted_by_claimer == False),
             )
         )
+        .filter(
+            db.query(Message).filter(Message.chat_id == Chat.id).exists()
+        )
         .order_by(Chat.created_at.desc())
         .all()
     )
+
+    result = []
+    for chat, finder_username, claimer_username in rows:
+        other_user_username = claimer_username if chat.finder_id == user_id else finder_username
+        message_count = db.query(Message).filter(Message.chat_id == chat.id).count()
+        result.append((chat, other_user_username, message_count))
+    return result
 
 
 def soft_delete_chat(db: Session, chat_id: uuid.UUID, user_id: uuid.UUID) -> bool:

@@ -7,7 +7,7 @@ import 'package:web_socket_channel/web_socket_channel.dart';
 // Use the VS Code launch configs in .vscode/launch.json to switch easily.
 const String _baseUrl = String.fromEnvironment(
   'BASE_URL',
-  defaultValue: 'http://172.20.10.2:8000',
+  defaultValue: 'http://192.168.1.2:8000',
 );
 
 class WebSocketService {

@@ -9,7 +9,7 @@ import 'package:ifind_app/services/storage_service.dart';
 // Use the VS Code launch configs in .vscode/launch.json to switch easily.
 const String baseUrl = String.fromEnvironment(
   'BASE_URL',
-  defaultValue: 'http://172.20.10.2:8000',
+  defaultValue: 'http://192.168.1.2:8000',
 );
 
 class ApiService {

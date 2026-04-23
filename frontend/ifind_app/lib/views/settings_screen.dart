@@ -1,3 +1,5 @@
+import 'dart:ui';
+
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
@@ -86,11 +88,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
           Positioned(
             top: -60, right: -60,
             child: IgnorePointer(
-              child: Container(
-                width: 280, height: 280,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: _kPrimary.withValues(alpha: 0.10),
+              child: ImageFiltered(
+                imageFilter: ImageFilter.blur(sigmaX: 55, sigmaY: 55),
+                child: Container(
+                  width: 280, height: 280,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: _kPrimary.withValues(alpha: 0.10),
+                  ),
                 ),
               ),
             ),
@@ -98,11 +103,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
           Positioned(
             bottom: 80, left: -60,
             child: IgnorePointer(
-              child: Container(
-                width: 260, height: 260,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: _kAccentPurple.withValues(alpha: 0.08),
+              child: ImageFiltered(
+                imageFilter: ImageFilter.blur(sigmaX: 55, sigmaY: 55),
+                child: Container(
+                  width: 260, height: 260,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: _kAccentPurple.withValues(alpha: 0.08),
+                  ),
                 ),
               ),
             ),

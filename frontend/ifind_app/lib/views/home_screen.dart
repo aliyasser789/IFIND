@@ -3,8 +3,10 @@ import 'dart:ui';
 
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:provider/provider.dart';
 
 import '../controllers/chat_controller.dart';
+import '../providers/user_profile_provider.dart';
 import '../services/api_service.dart';
 import '../services/badge_service.dart';
 import '../services/storage_service.dart';
@@ -38,7 +40,6 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  String _displayName = '';
   bool _loading = true;
   List<Map<String, dynamic>> _recentItems = [];
   // ignore: unused_field
@@ -88,19 +89,19 @@ class _HomeScreenState extends State<HomeScreen> {
       return;
     }
 
-    final username = await ApiService().getMe() ?? '';
+    final fullName = await ApiService().getMe() ?? '';
     if (!mounted) return;
 
-    final name = username.isNotEmpty ? username : 'User';
+    final name = fullName.isNotEmpty ? fullName : 'User';
 
     final items = await ApiService().getRecentItems();
     if (!mounted) return;
 
     setState(() {
-      _displayName = name;
       _recentItems = items.take(5).toList();
       _loading = false;
     });
+    Provider.of<UserProfileProvider>(context, listen: false).updateName(name);
   }
 
   @override
@@ -149,7 +150,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         // Welcome
-                        _WelcomeSection(displayName: _displayName),
+                        _WelcomeSection(displayName: Provider.of<UserProfileProvider>(context).displayName),
                         const SizedBox(height: 32),
 
                         // Action cards

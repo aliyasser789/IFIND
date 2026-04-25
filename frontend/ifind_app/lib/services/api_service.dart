@@ -387,7 +387,7 @@ class ApiService {
       final raw = response.data;
       final data =
           (raw is String ? jsonDecode(raw) : raw) as Map<String, dynamic>;
-      return data['username'] as String?;
+      return data['full_name'] as String?;
     } catch (e) {
       return null;
     }

@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import 'providers/user_profile_provider.dart';
 import 'services/api_service.dart';
 import 'views/splash_screen.dart';
 
@@ -11,14 +13,17 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'IFind',
-      debugShowCheckedModeBanner: false,
-      theme: ThemeData(
-        scaffoldBackgroundColor: const Color(0xFF101622),
-        appBarTheme: const AppBarTheme(elevation: 0),
+    return ChangeNotifierProvider(
+      create: (_) => UserProfileProvider(),
+      child: MaterialApp(
+        title: 'IFind',
+        debugShowCheckedModeBanner: false,
+        theme: ThemeData(
+          scaffoldBackgroundColor: const Color(0xFF101622),
+          appBarTheme: const AppBarTheme(elevation: 0),
+        ),
+        home: const SplashScreen(),
       ),
-      home: const SplashScreen(),
     );
   }
 }

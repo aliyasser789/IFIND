@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:provider/provider.dart';
 
+import '../providers/user_profile_provider.dart';
 import '../services/api_service.dart';
 
 const _kPrimary    = Color(0xFF135BEC);
@@ -54,6 +56,7 @@ class _ChangeDisplayNameScreenState extends State<ChangeDisplayNameScreen> {
     if (!mounted) return;
     setState(() => _saving = false);
     if (result['success'] == true) {
+      Provider.of<UserProfileProvider>(context, listen: false).updateName(newName);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(

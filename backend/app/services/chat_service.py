@@ -85,6 +85,16 @@ def get_user_chats(db: Session, user_id: uuid.UUID) -> list[tuple]:
         other_user_username = claimer_username if chat.finder_id == user_id else finder_username
         message_count = db.query(Message).filter(Message.chat_id == chat.id).count()
         result.append((chat, other_user_username, message_count))
+    return bubble_sort_by_message_count(result)
+
+
+def bubble_sort_by_message_count(chats: list[tuple]) -> list[tuple]:
+    result = list(chats)
+    n = len(result)
+    for pass_index in range(n - 1):
+        for i in range(n - 1 - pass_index):
+            if result[i][2] < result[i + 1][2]:
+                result[i], result[i + 1] = result[i + 1], result[i]
     return result
 
 

@@ -58,13 +58,6 @@ class _ChatListScreenState extends State<ChatListScreen> {
 
   Future<void> _loadChats() async {
     final chats = await _chatController.getUserChats();
-    chats.sort((a, b) {
-      final aDate =
-          DateTime.tryParse(a['created_at']?.toString() ?? '') ?? DateTime(0);
-      final bDate =
-          DateTime.tryParse(b['created_at']?.toString() ?? '') ?? DateTime(0);
-      return bDate.compareTo(aDate);
-    });
     final seenIds = await BadgeService.getSeenChatIds();
 
     // Per-chat unread counts so each row can show "user X has N new messages".

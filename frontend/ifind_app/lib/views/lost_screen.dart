@@ -37,7 +37,6 @@ class _LostScreenState extends State<LostScreen> {
   final TextEditingController _searchController = TextEditingController();
   String? _selectedDistrict;
   String? _selectedCategory;
-  List<String> _districts = [];
   List<String> _categories = [];
   bool _isLoading = true;
 
@@ -54,12 +53,10 @@ class _LostScreenState extends State<LostScreen> {
 
   Future<void> _loadFilters() async {
     final api = ApiService();
-    final results =
-        await Future.wait([api.getDistricts(), api.getCategories()]);
+    final categories = await api.getCategories();
     if (mounted) {
       setState(() {
-        _districts = results[0];
-        _categories = results[1];
+        _categories = categories;
         _isLoading = false;
       });
     }
@@ -91,17 +88,34 @@ class _LostScreenState extends State<LostScreen> {
     }
     if (mounted) setState(() => _isSearching = true);
     final api = ApiService();
-    final results = await api.searchItems(
+    final result = await api.searchItems(
       keywords: query.isEmpty ? ' ' : query,
       district: _selectedDistrict,
       category: _selectedCategory,
     );
     if (mounted) {
-      setState(() {
-        _searchResults = results;
-        _hasSearched = true;
-        _isSearching = false;
-      });
+      if (!result['success']) {
+        setState(() {
+          _isSearching = false;
+          _selectedDistrict = null;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              result['error'] ?? 'Search failed',
+              style: GoogleFonts.manrope(color: Colors.white),
+            ),
+            backgroundColor: Colors.red.shade800,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      } else {
+        setState(() {
+          _searchResults = List<Map<String, dynamic>>.from(result['data']);
+          _hasSearched = true;
+          _isSearching = false;
+        });
+      }
     }
   }
 
@@ -193,6 +207,8 @@ class _LostScreenState extends State<LostScreen> {
     );
   }
 
+  static const _kPresetDistricts = ['Heliopolis', 'Maadi', 'Nasr City', 'New Cairo', 'Zamalek'];
+
   Future<void> _showDistrictSheet() async {
     final selected = await showModalBottomSheet<String>(
       context: context,
@@ -203,12 +219,54 @@ class _LostScreenState extends State<LostScreen> {
       ),
       builder: (_) => _LostFilterSheet(
         title: 'Select District',
-        items: _districts,
+        items: [..._kPresetDistricts, 'Other'],
         current: _selectedDistrict,
       ),
     );
-    if (selected != null && mounted) {
+    if (!mounted) return;
+    if (selected == 'Other') {
+      await _showCustomDistrictDialog();
+    } else if (selected != null) {
       setState(() => _selectedDistrict = selected.isEmpty ? null : selected);
+      _searchItems();
+    }
+  }
+
+  Future<void> _showCustomDistrictDialog() async {
+    final controller = TextEditingController();
+    final typed = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: _kSlate900,
+        title: Text(
+          'Enter District',
+          style: GoogleFonts.manrope(color: Colors.white, fontWeight: FontWeight.w700),
+        ),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          style: GoogleFonts.manrope(color: Colors.white),
+          decoration: InputDecoration(
+            hintText: 'e.g. Sheikh Zayed',
+            hintStyle: GoogleFonts.manrope(color: _kSlate400),
+            enabledBorder: const UnderlineInputBorder(borderSide: BorderSide(color: _kSlate400)),
+            focusedBorder: const UnderlineInputBorder(borderSide: BorderSide(color: _kPrimary)),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: Text('Cancel', style: GoogleFonts.manrope(color: _kSlate400)),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, controller.text.trim()),
+            child: Text('Search', style: GoogleFonts.manrope(color: _kPrimary, fontWeight: FontWeight.w700)),
+          ),
+        ],
+      ),
+    );
+    if (typed != null && typed.isNotEmpty && mounted) {
+      setState(() => _selectedDistrict = typed);
       _searchItems();
     }
   }

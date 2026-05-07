@@ -189,7 +189,7 @@ async def upload_id_back(
     return {"message": "ID back photo saved successfully"}
 
 
-# ── /user routes ───────────────────────────────────────────────────────────────
+
 user_router = APIRouter(prefix="/user", tags=["user"])
 
 

@@ -9,7 +9,7 @@ import 'package:ifind_app/services/storage_service.dart';
 // Use the VS Code launch configs in .vscode/launch.json to switch easily.
 const String baseUrl = String.fromEnvironment(
   'BASE_URL',
-  defaultValue: 'http://192.168.1.2:8000',
+  defaultValue: 'http://172.20.10.2:8000',
 );
 
 class ApiService {
@@ -356,7 +356,11 @@ class ApiService {
   }) async {
     final token = await StorageService().getToken();
     if (token == null) {
-      return {'success': false, 'data': <Map<String, dynamic>>[], 'error': 'Not authenticated.'};
+      return {
+        'success': false,
+        'data': <Map<String, dynamic>>[],
+        'error': 'Not authenticated.'
+      };
     }
     try {
       final queryParams = <String, String>{};
@@ -375,12 +379,26 @@ class ApiService {
     } on DioException catch (e) {
       if (e.response != null) {
         final data = e.response!.data;
-        final detail = (data is Map) ? (data['detail'] ?? 'Search failed') : 'Search failed';
-        return {'success': false, 'data': <Map<String, dynamic>>[], 'error': detail.toString()};
+        final detail = (data is Map)
+            ? (data['detail'] ?? 'Search failed')
+            : 'Search failed';
+        return {
+          'success': false,
+          'data': <Map<String, dynamic>>[],
+          'error': detail.toString()
+        };
       }
-      return {'success': false, 'data': <Map<String, dynamic>>[], 'error': 'Cannot connect to server.'};
+      return {
+        'success': false,
+        'data': <Map<String, dynamic>>[],
+        'error': 'Cannot connect to server.'
+      };
     } catch (e) {
-      return {'success': false, 'data': <Map<String, dynamic>>[], 'error': 'Something went wrong.'};
+      return {
+        'success': false,
+        'data': <Map<String, dynamic>>[],
+        'error': 'Something went wrong.'
+      };
     }
   }
 

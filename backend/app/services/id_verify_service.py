@@ -17,17 +17,9 @@ def _clean_ocr_digits(text: str) -> str:
 
 
 def verify_id_card(image_bytes: bytes) -> dict:
-    """
-    Accepts raw image bytes, runs the Egyptian ID card AI pipeline,
-    and returns a structured result dict.
-
-    Success: {"verified": True, "national_id": "...", "name": "...",
-              "governorate": "...", "gender": "...", "birth_date": "..."}
-    Failure: {"verified": False, "error": "..."}
-    """
     tmp_path = None
     try:
-        # Write bytes to a temp file so OpenCV / YOLO can read it
+        # Write bytes to a temp file so  YOLO can read it
         with tempfile.NamedTemporaryFile(delete=False, suffix=".jpg") as tmp:
             tmp.write(image_bytes)
             tmp_path = tmp.name

@@ -292,7 +292,7 @@ Your local IP changes every time you connect to a different WiFi network. Update
 - **IP must be updated manually** when the WiFi network changes.
 - **Gemini API key required** for voice feature extraction. Without a valid key in `.env`, voice reports will fail.
 - **GPS auto-detection deferred to v2** — district is currently selected from a hardcoded list. `gps_lat` and `gps_lng` columns are reserved in the schema.
-
+- **YOLOv8 pre-trained model** — item recognition uses the standard COCO-trained YOLOv8 weights, not a custom-trained model. Recognition accuracy depends on how well the found item matches the 45 curated categories. A custom-trained model on real lost & found data is planned for v2.
 ---
 
 ## License

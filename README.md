@@ -1,18 +1,17 @@
 # iFind — AI-Powered Lost & Found Platform
 
-<!-- SCREENSHOTS — paste your 5 screenshots here after uploading them to your repo -->
-<!-- Example format once you have the images:
 <p align="center">
-  <img src="screenshots/splash.png" width="18%" />
-  <img src="screenshots/home.png" width="18%" />
-  <img src="screenshots/found.png" width="18%" />
-  <img src="screenshots/lost.png" width="18%" />
-  <img src="screenshots/chat.png" width="18%" />
+  <img src="ifind_photos/splash.png" width="18%" />
+  <img src="ifind_photos/homepage.png" width="18%" />
+  <img src="ifind_photos/ifind.png" width="18%" />
+  <img src="ifind_photos/ilost.png" width="18%" />
+  <img src="ifind_photos/settings.png" width="18%" />
 </p>
--->
 
+<p align="center">
+  <a href="https://drive.google.com/drive/folders/14FfBlQom_hEj0ZH4JvvVWyx9iK19zRLb?usp=drive_link">▶️ Watch Demo Video</a>
+</p>
 ---
-
 iFind is a community-driven mobile application that connects people who have **lost items** with people who have **found them**. It uses AI-powered item recognition, voice-based reporting, district-based location tagging, real-time chat, and verified identity to create a secure, trustworthy recovery system.
 
 Built as a Year 3 algorithms project at Egyptian Chinese University — developed from the ground up as a full-stack mobile application with a Flutter frontend and a Python/FastAPI backend.

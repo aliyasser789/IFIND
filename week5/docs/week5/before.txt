@@ -1,0 +1,15 @@
+=== FEES: RUFF BEFORE REFACTORING ===
+
+All checks passed!
+
+=== FEES: PYLINT BEFORE REFACTORING ===
+
+************* Module fees
+fees.py:10:0: C0304: Final newline missing (missing-final-newline)
+fees.py:1:0: C0114: Missing module docstring (missing-module-docstring)
+fees.py:1:0: C0116: Missing function or method docstring (missing-function-docstring)
+fees.py:4:7: C0121: Comparison 'scholarship == True' should be 'scholarship is True' if checking for the singleton value True, or 'scholarship' if testing for truthiness (singleton-comparison)
+fees.py:7:7: C0121: Comparison 'late_payment == True' should be 'late_payment is True' if checking for the singleton value True, or 'late_payment' if testing for truthiness (singleton-comparison)
+
+------------------------------------------------------------------
+Your code has been rated at 2.86/10 (previous run: 0.00/10, +2.86)
